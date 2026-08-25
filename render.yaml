@@ -1,0 +1,39 @@
+# Render Blueprint for the ShopWise AI backend only.
+# The frontend is deployed separately on Vercel and is not
+# defined here.
+#
+# Usage: in the Render dashboard, create a new Blueprint and
+# point it at this repo. This file lives at the repo root
+# (Render's default Blueprint location) and scopes the service
+# to the backend/ subdirectory via rootDir.
+
+services:
+  - name: shopwise-ai-backend
+    type: web
+    runtime: python
+    rootDir: backend
+
+    # Installs dependencies, then builds the RAG vector store
+    # from the tracked knowledge base (app/rag/documents/) so
+    # ChromaDB is populated before the API starts serving.
+    buildCommand: pip install -r requirements.txt && python -m app.rag.ingest
+
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+    envVars:
+      # Pins the Python version instead of relying on Render's
+      # platform default, matching the version this backend was
+      # built and tested against.
+      - key: PYTHON_VERSION
+        value: 3.14.7
+
+      # Secrets: values are NOT stored here. Render prompts for
+      # them when the Blueprint is created (sync: false), and
+      # they're entered directly in the Render dashboard.
+      - key: GEMINI_API_KEY
+        sync: false
+
+      # Set this to the deployed Vercel frontend URL once known
+      # (comma-separate multiple origins if needed).
+      - key: FRONTEND_URL
+        sync: false
