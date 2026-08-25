@@ -1,7 +1,8 @@
 from pathlib import Path
 
 import chromadb
-from sentence_transformers import SentenceTransformer
+
+from app.rag.embeddings import embed_documents
 
 
 # ============================================================
@@ -14,6 +15,8 @@ DOCUMENTS_DIR = BASE_DIR / "documents"
 
 CHROMA_DIR = BASE_DIR / "chroma_db"
 
+COLLECTION_NAME = "shopwise_knowledge"
+
 
 # ============================================================
 # CHROMA
@@ -22,24 +25,6 @@ CHROMA_DIR = BASE_DIR / "chroma_db"
 client = chromadb.PersistentClient(
     path=str(CHROMA_DIR)
 )
-
-
-collection = client.get_or_create_collection(
-    name="shopwise_knowledge"
-)
-
-
-# ============================================================
-# EMBEDDING MODEL
-# ============================================================
-
-print("Loading embedding model...")
-
-embedding_model = SentenceTransformer(
-    "all-MiniLM-L6-v2"
-)
-
-print("Embedding model loaded.")
 
 
 # ============================================================
@@ -155,25 +140,33 @@ def ingest():
     ]
 
     print(
-        "Creating embeddings..."
+        "Creating embeddings via Gemini..."
     )
 
-    embeddings = embedding_model.encode(
-        texts,
-        show_progress_bar=True
-    ).tolist()
+    embeddings = embed_documents(
+        texts
+    )
 
     # --------------------------------------------------------
-    # Clear existing collection
+    # Drop and recreate the collection instead of just
+    # clearing entries. This guarantees the collection's
+    # vector dimensionality always matches the current
+    # embedding model -- important when switching embedding
+    # models/dimensions, as we just did.
     # --------------------------------------------------------
 
-    existing = collection.get()
+    try:
 
-    if existing["ids"]:
-
-        collection.delete(
-            ids=existing["ids"]
+        client.delete_collection(
+            name=COLLECTION_NAME
         )
+
+    except Exception:
+        pass
+
+    collection = client.get_or_create_collection(
+        name=COLLECTION_NAME
+    )
 
     # --------------------------------------------------------
     # Store vectors

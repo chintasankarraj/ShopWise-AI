@@ -1,7 +1,8 @@
 from pathlib import Path
 
 import chromadb
-from sentence_transformers import SentenceTransformer
+
+from app.rag.embeddings import embed_query
 
 
 # ============================================================
@@ -54,15 +55,6 @@ except Exception as error:
 
 
 # ============================================================
-# EMBEDDING MODEL
-# ============================================================
-
-embedding_model = SentenceTransformer(
-    "all-MiniLM-L6-v2"
-)
-
-
-# ============================================================
 # RETRIEVE
 # ============================================================
 
@@ -81,9 +73,12 @@ def retrieve_context(
     if collection is None:
         return []
 
-    query_embedding = embedding_model.encode(
+    query_embedding = embed_query(
         query
-    ).tolist()
+    )
+
+    if query_embedding is None:
+        return []
 
     results = collection.query(
         query_embeddings=[query_embedding],
