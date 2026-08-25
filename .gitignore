@@ -1,0 +1,30 @@
+# Environment variables (may contain real API keys / secrets)
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+env/
+*.egg-info/
+
+# ChromaDB persistence data
+chroma_db/
+
+# Debug output dumped by the scraper
+*debug*.html
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+
+# Editor / OS
+.DS_Store
+.vscode/

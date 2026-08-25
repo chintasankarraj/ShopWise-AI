@@ -1,0 +1,17 @@
+# Environment variables (contains the real GEMINI_API_KEY)
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# ChromaDB persistence data (rebuildable via `python -m app.rag.ingest`)
+app/rag/chroma_db/
+
+# Debug output dumped by the scraper
+amazon_product_debug.html
+*debug*.html

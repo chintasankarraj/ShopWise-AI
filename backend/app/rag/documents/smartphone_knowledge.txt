@@ -1,0 +1,85 @@
+SMARTPHONE PRODUCT KNOWLEDGE
+
+DISPLAY
+
+AMOLED and OLED displays generally provide deeper blacks, higher contrast,
+and more vibrant colors than conventional LCD panels.
+
+Higher refresh rates such as 90Hz, 120Hz, and 144Hz generally provide
+smoother scrolling and animations than 60Hz displays.
+
+A high refresh rate does not automatically mean that the display has
+better image quality. Panel technology, brightness, resolution, and color
+accuracy also matter.
+
+BATTERY
+
+Larger battery capacity generally provides greater potential battery
+runtime, but actual battery life depends on processor efficiency, display
+refresh rate, brightness, software optimization, and usage.
+
+A 5000mAh battery is generally considered a substantial smartphone battery.
+Batteries around 6000mAh or higher can provide particularly strong
+battery capacity when combined with efficient hardware.
+
+CHARGING
+
+Higher charging wattage can reduce charging time, although actual charging
+speed depends on the charging protocol, battery management, temperature,
+charger, and device implementation.
+
+CAMERA
+
+Camera megapixel count alone does not determine camera quality.
+
+Image processing, sensor size, optical stabilization, lens quality,
+software algorithms, and lighting conditions also influence photography.
+
+PROCESSOR
+
+A smartphone processor affects application performance, gaming capability,
+power efficiency, image processing, and overall responsiveness.
+
+Processor performance should be evaluated using the processor generation,
+architecture, CPU/GPU capabilities, and the target usage rather than only
+the processor name.
+
+RAM
+
+Higher RAM capacity can help with multitasking and keeping applications
+available in memory.
+
+For typical smartphone usage, 8GB RAM provides a strong multitasking
+baseline, while higher capacities can be useful for demanding workloads.
+
+STORAGE
+
+Higher storage capacity allows users to store more applications, photos,
+videos, and files.
+
+256GB provides substantially more storage capacity than 128GB and can be
+useful for users who store large amounts of media.
+
+5G
+
+5G connectivity can provide higher network speeds and lower latency where
+compatible network coverage is available.
+
+The real-world benefit depends on the carrier, coverage, network
+conditions, and supported bands.
+
+WATER AND DUST RESISTANCE
+
+IP ratings describe protection against dust and water under specified
+testing conditions.
+
+A higher IP rating generally indicates stronger tested resistance, but
+water resistance does not mean a device is completely waterproof.
+
+WEIGHT
+
+Larger batteries, larger displays, and additional hardware can increase
+smartphone weight.
+
+A heavier device may provide advantages such as larger battery capacity
+but can be less comfortable for prolonged one-handed use.
