@@ -1,4 +1,5 @@
 import sys
+import time
 
 import requests
 from bs4 import BeautifulSoup
@@ -41,7 +42,153 @@ HEADERS = {
         "text/html,application/xhtml+xml,"
         "application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
     ),
+    "Accept-Encoding": "gzip, deflate, br",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Connection": "keep-alive",
+    "Referer": "https://www.google.com/",
 }
+
+# Biases Amazon toward the India marketplace/currency regardless
+# of the requesting server's own IP geography, since a server
+# hosted outside India can otherwise be shown a country-selector
+# / marketplace-redirect page instead of the actual product page.
+COOKIES = {
+    "i18n-prefs": "INR",
+}
+
+
+# ============================================================
+# NON-PRODUCT RESPONSE DETECTION
+#
+# Amazon can return HTTP 200 for a page that isn't the product
+# page at all -- a bare marketplace homepage, a country/locale
+# redirect splash, or a bot-check/consent interstitial. Without
+# detecting this, extract_product() would silently return a
+# "successful" Product with a fake title and no real data.
+# ============================================================
+
+class AmazonBlockedError(Exception):
+    """
+    Raised when Amazon returned a non-product response (e.g. a
+    homepage, marketplace/locale redirect, or bot-check page)
+    instead of the requested product page.
+    """
+
+
+_BLOCK_PAGE_TEXT_MARKERS = [
+    "api-services-support@amazon.com",
+    "type the characters you see in this image",
+    "enter the characters you see below",
+    "to discuss automated access to amazon data",
+    "sorry, we just need to make sure you're not a robot",
+]
+
+# Matches a bare marketplace title with nothing else in it,
+# e.g. "Amazon.in", "Amazon.com", "Amazon.co.uk" -- exactly
+# what a homepage/locale-redirect page's <title> looks like.
+# A real product page's title is never just the site name.
+_BARE_MARKETPLACE_TITLE = re.compile(
+    r"^amazon(\.[a-z]{2,3}){1,2}$",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_blocked_response(title, html):
+    """
+    Fast check used right after fetching: does this response
+    look like a non-product Amazon page?
+    """
+
+    normalized_title = (title or "").strip()
+
+    if not normalized_title:
+        return True
+
+    if _BARE_MARKETPLACE_TITLE.match(normalized_title):
+        return True
+
+    html_lower = (html or "").lower()
+
+    if any(
+        marker in html_lower
+        for marker in _BLOCK_PAGE_TEXT_MARKERS
+    ):
+        return True
+
+    return False
+
+
+def _fetch_amazon_page(url, max_attempts=2):
+    """
+    Fetch an Amazon URL, retrying once if the response looks
+    like a non-product page (homepage/redirect/bot-check)
+    rather than a genuine fetch failure. Genuine HTTP errors
+    still raise via response.raise_for_status() and are left
+    for the caller to handle as a normal request failure.
+    """
+
+    last_title = None
+
+    for attempt in range(1, max_attempts + 1):
+
+        response = requests.get(
+            url,
+            headers=HEADERS,
+            cookies=COOKIES,
+            timeout=15,
+            allow_redirects=True,
+        )
+
+        print("=" * 80)
+        print("FETCH ATTEMPT :", attempt)
+        print("REQUESTED URL :", url)
+        print("FINAL URL     :", response.url)
+        print("STATUS CODE   :", response.status_code)
+        print("RESPONSE SIZE :", len(response.text))
+        print(
+            "CONTENT TYPE  :",
+            response.headers.get("content-type"),
+        )
+        print("=" * 80)
+
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.text, "lxml")
+
+        title = (
+            soup.title.string.strip()
+            if soup.title and soup.title.string
+            else ""
+        )
+
+        if not _looks_like_blocked_response(
+            title,
+            response.text,
+        ):
+            return response, soup, title
+
+        last_title = title
+
+        print(
+            f"Attempt {attempt}: response looks like a "
+            f"non-product Amazon page (title={title!r})."
+        )
+
+        if attempt < max_attempts:
+            time.sleep(1)
+
+    raise AmazonBlockedError(
+        f"Amazon returned a non-product response "
+        f"(title={last_title!r}) after {max_attempts} "
+        "attempt(s). This usually means Amazon blocked, "
+        "redirected, or geo-gated the request from this "
+        "server's IP rather than serving the actual "
+        "product page."
+    )
 
 
 # ============================================================
@@ -440,52 +587,11 @@ def extract_product(url: str) -> Product:
         url = "https://" + url
 
     # ========================================================
-    # 2. Fetch product page
+    # 2. Fetch product page (retries once if the response
+    #    looks like a non-product page) and 4. Parse HTML
     # ========================================================
 
-    response = requests.get(
-        url,
-        headers=HEADERS,
-        timeout=15,
-        allow_redirects=True,
-    )
-
-    # ========================================================
-    # DEBUG HTTP RESPONSE
-    # ========================================================
-
-    print("=" * 80)
-
-    print(
-        "REQUESTED URL :",
-        url
-    )
-
-    print(
-        "FINAL URL     :",
-        response.url
-    )
-
-    print(
-        "STATUS CODE   :",
-        response.status_code
-    )
-
-    print(
-        "RESPONSE SIZE :",
-        len(response.text)
-    )
-
-    print(
-        "CONTENT TYPE  :",
-        response.headers.get(
-            "content-type"
-        )
-    )
-
-    print("=" * 80)
-
-    response.raise_for_status()
+    response, soup, _fetched_title = _fetch_amazon_page(url)
 
     # ========================================================
     # 3. Extract ASIN
@@ -498,15 +604,6 @@ def extract_product(url: str) -> Product:
     print(
         "ASIN:",
         asin
-    )
-
-    # ========================================================
-    # 4. Parse HTML
-    # ========================================================
-
-    soup = BeautifulSoup(
-        response.text,
-        "lxml"
     )
 
     # ========================================================
@@ -953,6 +1050,36 @@ def extract_product(url: str) -> Product:
         )
 
     print("=" * 80)
+
+    # ========================================================
+    # FINAL SAFETY NET: composite non-product detection
+    #
+    # The fast title/marker check in _fetch_amazon_page()
+    # catches the common cases (bare homepage title, known
+    # bot-check text). This is a second, broader check for a
+    # page that didn't trip those markers but still yielded
+    # nothing usable -- no brand, no price, no rating, no
+    # specifications, no reviews. A genuine Amazon product
+    # page essentially never extracts to nothing on every
+    # field simultaneously.
+    # ========================================================
+
+    if (
+        not brand
+        and not price
+        and rating is None
+        and reviews is None
+        and not specifications
+        and not review_texts
+    ):
+
+        raise AmazonBlockedError(
+            f"Amazon returned a page (title={title!r}) with "
+            "no extractable brand, price, rating, "
+            "specifications, or reviews. This looks like a "
+            "non-product response rather than a real "
+            "extraction failure."
+        )
 
     # ========================================================
     # 17. Return Product

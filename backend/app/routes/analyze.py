@@ -4,7 +4,10 @@ import requests
 from fastapi import APIRouter, HTTPException
 
 from app.schemas.product import ProductRequest
-from app.services.product_extractor import extract_product
+from app.services.product_extractor import (
+    extract_product,
+    AmazonBlockedError,
+)
 from app.services.category_detector import detect_category
 from app.agents.recommendation_agent import recommend
 from app.agents.insights_agent import generate_insights
@@ -19,6 +22,30 @@ def analyze(request: ProductRequest):
 
     try:
         return _analyze(request)
+
+    # ==================================================
+    # Amazon responded, but with a non-product page
+    # (homepage, locale redirect, bot-check/consent
+    # interstitial) instead of the requested product.
+    # Distinct from a generic fetch failure so this is
+    # diagnosable as "Amazon blocked/redirected this
+    # server" rather than a code bug or a dead URL.
+    # ==================================================
+
+    except AmazonBlockedError as error:
+
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Amazon did not return the product page for "
+                "this URL -- it returned a homepage, locale "
+                "redirect, or bot-check page instead, likely "
+                "because it blocked or geo-gated this "
+                f"server's request. Details: {error}"
+            ),
+        )
 
     # ==================================================
     # The product page could not be fetched (blocked,
