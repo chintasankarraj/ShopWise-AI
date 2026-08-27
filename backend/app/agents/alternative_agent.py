@@ -23,7 +23,15 @@ load_dotenv()
 
 # ============================================================
 # GEMINI CLIENT
+#
+# Explicit HTTP timeout required -- see the identical comment in
+# insights_agent.py. Without this, the SDK's default Client()
+# makes every call with httpx timeout=None (no protection at
+# all), confirmed via SDK source inspection and a controlled
+# local reproduction against an unresponsive socket.
 # ============================================================
+
+_GEMINI_TIMEOUT_MS = 30_000
 
 api_key = os.getenv("GEMINI_API_KEY")
 
@@ -31,13 +39,24 @@ client = None
 
 if api_key:
     client = genai.Client(
-        api_key=api_key
+        api_key=api_key,
+        http_options=types.HttpOptions(
+            timeout=_GEMINI_TIMEOUT_MS
+        ),
     )
 
 
 # ============================================================
 # CONSTANTS
 # ============================================================
+
+# Verification (see _verify_amazon_availability) runs up to
+# several times in sequence -- once per candidate, potentially
+# across both the Gemini and DuckDuckGo tiers -- so each call
+# gets a shorter budget than the primary extraction's 60s
+# default to bound total worst-case latency for this secondary,
+# best-effort feature.
+_ALTERNATIVE_VERIFICATION_TIMEOUT_SECONDS = 20
 
 SEARCH_HEADERS = {
     "User-Agent": (
@@ -301,6 +320,13 @@ def _verify_amazon_availability(url):
       (non-Amazon URL, no SCRAPERAPI_KEY configured, network
       error, etc) -- the caller should label this candidate as
       unverified rather than claim it's available.
+
+    Uses a shorter timeout than fetch_product_from_scraperapi()'s
+    60s default: this is best-effort, secondary verification of
+    up to several candidates in sequence (see
+    _verify_and_label_alternatives), not the primary product
+    extraction, so it must not be allowed to consume an outsized
+    share of total request latency.
     """
 
     asin = _amazon_asin_if_verifiable(
@@ -313,7 +339,8 @@ def _verify_amazon_availability(url):
     try:
 
         verified_product = fetch_product_from_scraperapi(
-            url
+            url,
+            timeout=_ALTERNATIVE_VERIFICATION_TIMEOUT_SECONDS,
         )
 
     except ScraperAPIProviderError as error:

@@ -576,12 +576,19 @@ def _extract_availability(data):
 # MAIN FUNCTION
 # ============================================================
 
-def fetch_product_from_scraperapi(url: str) -> Product:
+def fetch_product_from_scraperapi(url: str, timeout: int = 60) -> Product:
     """
     Fallback product provider used when direct Amazon
     extraction raises AmazonBlockedError. Raises
     ScraperAPIProviderError if it can't produce a usable
     Product either.
+
+    `timeout` defaults to 60s (unchanged from before) for this
+    function's primary use as the main extraction fallback.
+    Callers doing secondary/best-effort work against this same
+    function (e.g. alternative_agent.py's candidate availability
+    verification) can pass a shorter override so that work can't
+    contribute an outsized share of total request latency.
     """
 
     api_key = os.getenv("SCRAPERAPI_KEY")
@@ -624,7 +631,7 @@ def fetch_product_from_scraperapi(url: str) -> Product:
         response = requests.get(
             SCRAPERAPI_ENDPOINT,
             params=params,
-            timeout=60,
+            timeout=timeout,
         )
 
     except requests.exceptions.RequestException as error:

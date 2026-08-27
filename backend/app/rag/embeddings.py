@@ -25,10 +25,21 @@ EMBEDDING_MODEL = "gemini-embedding-001"
 
 EMBEDDING_DIMENSIONS = 768
 
+# Explicit HTTP timeout required -- see the identical comment in
+# insights_agent.py/alternative_agent.py. Shorter than the main
+# generation timeout since embedding calls are lightweight and
+# should return quickly under normal conditions.
+_GEMINI_EMBEDDING_TIMEOUT_MS = 15_000
+
 api_key = os.getenv("GEMINI_API_KEY")
 
 client = (
-    genai.Client(api_key=api_key)
+    genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(
+            timeout=_GEMINI_EMBEDDING_TIMEOUT_MS
+        ),
+    )
     if api_key
     else None
 )

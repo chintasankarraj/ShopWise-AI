@@ -6,13 +6,28 @@ from app.rag.retriever import retrieve_context, format_context
 
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 
 load_dotenv()
 
 
 # ============================================================
 # GEMINI CLIENT
+#
+# An explicit HTTP timeout is required here: the google-genai
+# SDK's default Client() has no timeout configured at all, which
+# resolves to httpx's timeout=None -- i.e. NO client-side
+# protection whatsoever if Gemini's connection/response ever
+# hangs (as opposed to cleanly returning an error status like
+# 429/503, which is handled separately and doesn't need this).
+# Confirmed by reading the installed SDK's _api_client.py and by
+# a controlled local reproduction: an httpx request with
+# timeout=None against an unresponsive socket never returns,
+# while the same request with an explicit timeout cuts off
+# exactly as expected.
 # ============================================================
+
+_GEMINI_TIMEOUT_MS = 30_000
 
 api_key = os.getenv("GEMINI_API_KEY")
 
@@ -20,7 +35,10 @@ client = None
 
 if api_key:
     client = genai.Client(
-        api_key=api_key
+        api_key=api_key,
+        http_options=types.HttpOptions(
+            timeout=_GEMINI_TIMEOUT_MS
+        ),
     )
 
 

@@ -19,12 +19,15 @@ def check(label, condition):
 
 def fake_fetch_factory(responses):
     """
-    Build a fake fetch_product_from_scraperapi(url) that returns
-    a canned Product (or raises) per URL, so tests don't touch
-    the network or spend real ScraperAPI credits.
+    Build a fake fetch_product_from_scraperapi(url, timeout=...)
+    that returns a canned Product (or raises) per URL, so tests
+    don't touch the network or spend real ScraperAPI credits.
+    Accepts (and ignores) `timeout` since production code always
+    passes an explicit override for verification calls -- see
+    test_network_timeouts.py for dedicated timeout-value checks.
     """
 
-    def _fake_fetch(url):
+    def _fake_fetch(url, timeout=60):
         result = responses[url]
 
         if isinstance(result, Exception):
