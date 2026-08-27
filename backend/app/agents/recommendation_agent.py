@@ -1,6 +1,27 @@
 import re
 
 
+# Matches bare Apple A-series chip names (A15-A19, optionally
+# "Pro"/"Bionic"), with or without a leading "apple " brand
+# prefix -- e.g. "a18", "a18 pro", "apple a17 bionic". The
+# lookaround assertions require a non-alphanumeric boundary on
+# both sides so it can't match inside an unrelated token (e.g.
+# "va18000"), and A14-and-below chips are deliberately excluded
+# since they aren't in this task's recognized range.
+_APPLE_CHIP_PATTERN = re.compile(
+    r"(?<![a-z0-9])a1[5-9](?:\s*(?:pro|bionic))?(?![a-z0-9])"
+)
+
+
+# Bounded "<number>W" wattage token (e.g. "20W", "20 W",
+# "30W adapter") -- \b on both sides so it can't match inside
+# an unrelated word (there's no digit immediately before "w" in
+# "Wi-Fi"/"With", so those never reach this pattern regardless).
+_CHARGING_WATT_PATTERN = re.compile(
+    r"\b(\d+(?:\.\d+)?)\s*w\b"
+)
+
+
 # ============================================================
 # HELPERS
 # ============================================================
@@ -134,11 +155,186 @@ def _contains_any(value, keywords):
     )
 
 
+# Requires a digit immediately (optionally with whitespace)
+# before "mah" -- so "5000mah"/"5000 mah" match but an
+# unrelated word ending in those letters doesn't -- or the
+# spelled-out "milliamp hour(s)" form. Used to tell a genuine
+# battery *capacity* figure apart from a *runtime* figure that
+# happens to share the same "number + unit word" shape (e.g.
+# "22 hours video playback" is not a capacity in mAh).
+_BATTERY_CAPACITY_UNIT_PATTERN = re.compile(
+    r"\d\s*mah\b|milliamp[\s-]?hours?\b"
+)
+
+
+def _looks_like_battery_capacity(value):
+    """
+    True only when `value` actually states a capacity unit
+    (mAh / milliamp hour(s)), not just any number next to the
+    word "battery" -- a runtime duration like "22 hours video
+    playback" must never be scored as if it were mAh capacity.
+    """
+
+    if not value:
+        return False
+
+    return bool(
+        _BATTERY_CAPACITY_UNIT_PATTERN.search(
+            str(value)
+        )
+    )
+
+
+def _charging_watt_tier(charging_watt_value):
+    """
+    Shared wattage-to-(points, reason) tiering, used by both the
+    dedicated-Charging-field path and the fallback path below so
+    the two paths can never award different points for the same
+    stated wattage.
+    """
+
+    if charging_watt_value >= 100:
+        return 10, "Ultra-Fast Charging"
+
+    elif charging_watt_value >= 67:
+        return 9, "Very Fast Charging"
+
+    elif charging_watt_value >= 45:
+        return 8, "Fast Charging"
+
+    elif charging_watt_value >= 25:
+        return 6, "Good Charging Speed"
+
+    elif charging_watt_value >= 15:
+        return 4, "Standard Charging"
+
+    else:
+        return 2, "Basic Charging"
+
+
+def _extract_fallback_charging_watts(specs):
+    """
+    When no dedicated Charging-named field exists, look for a
+    stated wattage inside closely-related already-extracted
+    fields (Battery / Power And Battery / Battery & Charging,
+    etc -- anything whose NAME already indicates battery/power
+    context). Apple's Amazon listings are a common real example:
+    charging speed is stated in prose inside "Power And Battery"
+    instead of its own field.
+
+    Only scans fields already found via `battery`/`power` name
+    matching -- never arbitrary unrelated specs -- and only
+    recognizes a properly bounded "<number>W" token. When more
+    than one wattage is stated (e.g. separate wired/MagSafe/Qi
+    figures), the highest is used, since that's the maximum
+    charging capability actually claimed in the text. Returns
+    None (never a guess) when no wattage is stated at all.
+    """
+
+    related = _find_all_specs(
+        specs,
+        ["battery", "power"],
+    )
+
+    watt_values = []
+
+    for _name, value in related:
+
+        for match in _CHARGING_WATT_PATTERN.finditer(str(value)):
+
+            try:
+
+                watt_values.append(
+                    float(match.group(1))
+                )
+
+            except ValueError:
+
+                continue
+
+    if not watt_values:
+        return None
+
+    return max(watt_values)
+
+
+def _extract_fallback_cellular_generation(title):
+    """
+    When no dedicated Cellular/Network/Connectivity-named field
+    exists, fall back to detecting 5G/4G capability from the
+    product title -- brand-neutral, since retailers virtually
+    always state cellular generation in the title even when they
+    omit it as a separate spec (Samsung, Apple, Xiaomi, OnePlus
+    listings alike).
+
+    Bounded to a standalone "5G"/"4G" token so it can never match
+    inside an unrelated number like "128GB"/"4GB" storage or RAM
+    (the immediately-following "B" removes the word boundary).
+    5G is preferred over 4G when a title improbably states both,
+    mirroring the dedicated-field check's own priority order.
+    Returns "5g", "4g", or None -- never invents a generation
+    that isn't literally stated.
+    """
+
+    if not title:
+        return None
+
+    title_lower = str(title).lower()
+
+    if re.search(r"\b5g\b", title_lower):
+        return "5g"
+
+    if re.search(r"\b4g\b", title_lower):
+        return "4g"
+
+    return None
+
+
+# Bounded "NNNxNNN" resolution shape only -- deliberately not
+# generic digit extraction, so it can't be confused by an
+# unrelated number in the same Display value (e.g. a ppi or
+# diagonal-size figure).
+_DISPLAY_RESOLUTION_PATTERN = re.compile(
+    r"\d{3,4}\s*x\s*\d{3,4}"
+)
+
+
+def _extract_resolution_from_display(display_value):
+    """
+    When no dedicated Resolution/Maximum Display Resolution
+    field exists, look for an explicit WxH resolution pattern
+    inside the already-found Display field's value -- e.g.
+    Apple's prose-style Display description states "2556x1179-
+    pixel resolution" instead of exposing a dedicated Resolution
+    field, and the same applies to any other brand's listing
+    shaped this way.
+
+    Returns the matched "WxH" substring for the existing
+    resolution-tier logic below to parse and score exactly as it
+    already does for a dedicated field -- this fallback only
+    supplies a better input string, it does not duplicate or
+    change any tier/weight. Returns None (never a guess) when no
+    such pattern is present.
+    """
+
+    if not display_value:
+        return None
+
+    match = _DISPLAY_RESOLUTION_PATTERN.search(
+        str(display_value)
+    )
+
+    if not match:
+        return None
+
+    return match.group(0)
+
+
 # ============================================================
 # SMARTPHONE SCORING
 # ============================================================
 
-def _score_smartphone(specs):
+def _score_smartphone(specs, title=None):
 
     score = 0
     reasons = []
@@ -242,16 +438,22 @@ def _score_smartphone(specs):
 
         # ----------------------------------------------------
         # Apple
+        #
+        # Amazon listings for iPhones frequently expose the
+        # chip under a field literally named "Chip"/"CPU Model"
+        # with just the bare model name as the value (e.g.
+        # "A18", "A18 Pro") -- no "Apple" brand prefix, unlike
+        # Snapdragon/Dimensity/Exynos values which always
+        # include their brand name. _APPLE_CHIP_PATTERN matches
+        # that bare form (with or without a leading "apple "),
+        # bounded on both sides so it can't match inside an
+        # unrelated alphanumeric token (e.g. "va18000" or a
+        # stray "5a18"). Older/unlisted A-series chips (A14 and
+        # below) intentionally fall through to the generic
+        # bucket below, matching the task's explicit scope.
         # ----------------------------------------------------
 
-        elif any(
-            x in processor
-            for x in [
-                "apple a18",
-                "apple a17",
-                "apple a16",
-            ]
-        ):
+        elif _APPLE_CHIP_PATTERN.search(processor):
 
             performance_score = 25
             reasons.append(
@@ -341,6 +543,103 @@ def _score_smartphone(specs):
                 "Entry-Level Processor"
             )
 
+        # ----------------------------------------------------
+        # Unisoc
+        #
+        # Unisoc's shipping lineup (Tiger T-series, A-series) is
+        # consistently entry/budget-tier in the current market --
+        # no genuine flagship Unisoc chip exists today, so every
+        # recognized Unisoc value maps to the same Entry-Level
+        # tier rather than guessing a higher one it hasn't earned.
+        # ----------------------------------------------------
+
+        elif "unisoc" in processor:
+
+            performance_score = 11
+            reasons.append(
+                "Entry-Level Processor"
+            )
+
+        # ----------------------------------------------------
+        # Huawei Kirin
+        #
+        # Matched by model-number prefix, mirroring the
+        # Dimensity pattern above: the 9000/990 generation were
+        # genuine flagship-class SoCs, the 8-series upper-mid,
+        # the 7-series midrange. Any other/unlisted Kirin model
+        # still falls to Entry-Level rather than the fully-
+        # generic bucket below, since it's a recognized named
+        # chip even without a confident specific tier.
+        # ----------------------------------------------------
+
+        elif _contains_any(
+            processor,
+            [
+                "kirin 9000",
+                "kirin 990",
+            ]
+        ):
+
+            performance_score = 23
+            reasons.append(
+                "Flagship Performance Processor"
+            )
+
+        elif "kirin 8" in processor:
+
+            performance_score = 21
+            reasons.append(
+                "High Performance Processor"
+            )
+
+        elif "kirin 7" in processor:
+
+            performance_score = 16
+            reasons.append(
+                "Good Midrange Processor"
+            )
+
+        elif "kirin" in processor:
+
+            performance_score = 11
+            reasons.append(
+                "Entry-Level Processor"
+            )
+
+        # ----------------------------------------------------
+        # MediaTek Helio
+        #
+        # MediaTek's older/lower sub-brand, distinct from
+        # Dimensity above. The higher-numbered gaming-focused
+        # G-series (G90/G91/G96/G99) are genuinely capable
+        # midrange chips; everything else in the Helio lineup
+        # (lower G-series, P-series, A-series, and any unlisted
+        # model) is entry/budget-tier -- Helio has no flagship
+        # tier in the real market, so nothing here claims one.
+        # ----------------------------------------------------
+
+        elif _contains_any(
+            processor,
+            [
+                "helio g99",
+                "helio g96",
+                "helio g91",
+                "helio g90",
+            ]
+        ):
+
+            performance_score = 16
+            reasons.append(
+                "Good Midrange Processor"
+            )
+
+        elif "helio" in processor:
+
+            performance_score = 11
+            reasons.append(
+                "Entry-Level Processor"
+            )
+
         else:
 
             performance_score = 8
@@ -370,6 +669,15 @@ def _score_smartphone(specs):
             "maximum display resolution",
         ]
     )
+
+    # No dedicated Resolution field -- fall back to an explicit
+    # WxH pattern inside the Display field's own value before
+    # concluding no resolution info exists.
+    if not resolution:
+
+        resolution = _extract_resolution_from_display(
+            display
+        )
 
     refresh = _find_spec(
         specs,
@@ -537,7 +845,14 @@ def _score_smartphone(specs):
 
     battery_score = 0
 
-    if battery_value is not None:
+    # Only score as capacity when the matched text actually
+    # states a capacity unit (see _looks_like_battery_capacity
+    # docstring) -- otherwise leave battery_score at 0 rather
+    # than inventing a capacity from a runtime figure.
+    if (
+        battery_value is not None
+        and _looks_like_battery_capacity(battery)
+    ):
 
         if battery_value >= 7000:
 
@@ -927,47 +1242,37 @@ def _score_smartphone(specs):
 
     elif charging_watt_value is not None:
 
-        if charging_watt_value >= 100:
+        points, reason = _charging_watt_tier(
+            charging_watt_value
+        )
 
-            score += 10
-            reasons.append(
-                "Ultra-Fast Charging"
+        score += points
+        reasons.append(reason)
+
+    # --------------------------------------------------------
+    # Neither a dedicated Charging field nor a charging-related
+    # wattage/time value -- fall back to a wattage stated inside
+    # closely-related battery/power fields before concluding no
+    # charging info exists at all. Never invents a number: if
+    # none is found, no charging points are awarded, same as
+    # today.
+    # --------------------------------------------------------
+
+    else:
+
+        fallback_watts = _extract_fallback_charging_watts(
+            specs
+        )
+
+        if fallback_watts is not None:
+
+            points, reason = _charging_watt_tier(
+                fallback_watts
             )
 
-        elif charging_watt_value >= 67:
+            score += points
+            reasons.append(reason)
 
-            score += 9
-            reasons.append(
-                "Very Fast Charging"
-            )
-
-        elif charging_watt_value >= 45:
-
-            score += 8
-            reasons.append(
-                "Fast Charging"
-            )
-
-        elif charging_watt_value >= 25:
-
-            score += 6
-            reasons.append(
-                "Good Charging Speed"
-            )
-
-        elif charging_watt_value >= 15:
-
-            score += 4
-            reasons.append(
-                "Standard Charging"
-            )
-
-        else:
-
-            score += 2
-            reasons.append(
-                "Basic Charging"
-            )
     # ========================================================
     # DURABILITY — 5 POINTS
     # ========================================================
@@ -1068,6 +1373,35 @@ def _score_smartphone(specs):
             )
 
         elif "4g" in cellular:
+
+            score += 3
+            reasons.append(
+                "4G Connectivity"
+            )
+
+    # --------------------------------------------------------
+    # No dedicated Cellular/Network/Connectivity field -- fall
+    # back to the product title, which retailers virtually
+    # always state cellular generation in even when they omit
+    # it as a separate spec (brand-neutral: Samsung, Apple,
+    # Xiaomi, OnePlus listings alike). Never invents a
+    # generation that isn't literally stated in the title.
+    # --------------------------------------------------------
+
+    else:
+
+        fallback_generation = _extract_fallback_cellular_generation(
+            title
+        )
+
+        if fallback_generation == "5g":
+
+            score += 5
+            reasons.append(
+                "5G Connectivity"
+            )
+
+        elif fallback_generation == "4g":
 
             score += 3
             reasons.append(
@@ -1364,7 +1698,8 @@ def _score_generic(specs):
 
 def recommend(
     specs,
-    category="other"
+    category="other",
+    title=None
 ):
 
     normalized_specs = _normalize_specs(
@@ -1373,12 +1708,17 @@ def recommend(
 
     # --------------------------------------------------------
     # Category-specific scoring
+    #
+    # `title` is optional and defaults to None -- existing
+    # callers that don't pass it keep working unchanged (only
+    # used by the smartphone connectivity title-fallback).
     # --------------------------------------------------------
 
     if category == "smartphone":
 
         score, reasons = _score_smartphone(
-            normalized_specs
+            normalized_specs,
+            title=title
         )
 
     elif category == "laptop":

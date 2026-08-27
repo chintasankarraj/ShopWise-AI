@@ -31,7 +31,9 @@ ALLOWED_KEYWORDS = [
     "5g",
     "4g",
     "water resistance",
+    "water resistant",
     "dust resistance",
+    "dust resistant",
     "weight",
     "dimensions",
     "material",
@@ -84,6 +86,54 @@ def normalize_name(name: str) -> str:
     }
 
     return aliases.get(name, name)
+
+
+def specification_richness(value: str) -> tuple:
+    """
+    Deterministic heuristic for how informative a specification
+    VALUE is, used to pick between two values that share the
+    same normalized specification name (see step 5 below).
+
+    Amazon listings sometimes carry the same attribute in more
+    than one table with different levels of detail -- e.g. a
+    compact "at a glance" summary ("6.1 in") alongside a fuller
+    technical description ("Super Retina XDR display ... OLED
+    ... 2556x1179-pixel resolution at 460 ppi") both normalizing
+    to "Display". Picking whichever was merely encountered
+    first can silently keep the less useful one.
+
+    Returns a (digit_count, word_count, length) tuple, compared
+    lexicographically by the caller. This is deliberately NOT
+    "longest string wins" -- that alone could let an unusually
+    long but low-content value (e.g. repeated boilerplate/legal
+    text) beat a short, precise one no matter how long the
+    former is. Putting digit count and word count ahead of
+    length in the tuple means actual technical content (a
+    resolution, a measurement, distinct descriptive terms) is
+    always compared first; raw length only ever acts as the
+    final tie-breaker between two values with equal content
+    signals, never as a way to out-rank them.
+    """
+
+    value = (value or "").strip()
+
+    if not value:
+        return (0, 0, 0)
+
+    digit_count = sum(
+        character.isdigit()
+        for character in value
+    )
+
+    word_count = len(
+        value.split()
+    )
+
+    return (
+        digit_count,
+        word_count,
+        len(value),
+    )
 
 
 def is_relevant(name: str) -> bool:
@@ -235,22 +285,42 @@ def extract_specifications(soup: BeautifulSoup) -> list[dict]:
         unique_specs.append(spec)
 
     # ============================================================
-    # 5. Keep one value per normalized specification
+    # 5. Keep the most informative value per normalized
+    #    specification (see specification_richness() docstring
+    #    above) -- not simply whichever was encountered first.
+    #    The final list still preserves each name's original
+    #    first-seen ORDER; only which value is kept for that
+    #    name can change.
     # ============================================================
 
-    final_specs = []
+    best_by_name = {}
 
-    seen_names = set()
+    order = []
 
     for spec in unique_specs:
 
         name = normalize_name(spec["name"])
 
-        if name in seen_names:
+        if name not in best_by_name:
+
+            best_by_name[name] = spec
+
+            order.append(name)
+
             continue
 
-        seen_names.add(name)
+        existing = best_by_name[name]
 
-        final_specs.append(spec)
+        if (
+            specification_richness(spec["value"])
+            > specification_richness(existing["value"])
+        ):
+
+            best_by_name[name] = spec
+
+    final_specs = [
+        best_by_name[name]
+        for name in order
+    ]
 
     return final_specs

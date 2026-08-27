@@ -160,7 +160,8 @@ def _analyze(request: ProductRequest):
 
     analysis = recommend(
         specs,
-        category
+        category,
+        title=product.title
     )
     print("=" * 80)
     print("LIVE RECOMMENDATION DEBUG")
