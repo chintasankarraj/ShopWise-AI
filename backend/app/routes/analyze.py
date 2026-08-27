@@ -8,6 +8,10 @@ from app.services.product_extractor import (
     extract_product,
     AmazonBlockedError,
 )
+from app.services.scraperapi_product_provider import (
+    fetch_product_from_scraperapi,
+    ScraperAPIProviderError,
+)
 from app.services.category_detector import detect_category
 from app.agents.recommendation_agent import recommend
 from app.agents.insights_agent import generate_insights
@@ -44,6 +48,27 @@ def analyze(request: ProductRequest):
                 "redirect, or bot-check page instead, likely "
                 "because it blocked or geo-gated this "
                 f"server's request. Details: {error}"
+            ),
+        )
+
+    # ==================================================
+    # Amazon blocked the direct request AND the ScraperAPI
+    # fallback (used inside _analyze()) also failed to
+    # return usable product data. Preserves the same
+    # 502/"blocked" behavior as above rather than falling
+    # through to a generic 500.
+    # ==================================================
+
+    except ScraperAPIProviderError as error:
+
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Amazon blocked the direct request, and the "
+                "ScraperAPI fallback also failed to return "
+                f"usable product data. Details: {error}"
             ),
         )
 
@@ -91,9 +116,18 @@ def _analyze(request: ProductRequest):
 
     # ==================================================
     # 1. Extract product
+    #
+    # Amazon is the primary provider. If it blocks/redirects
+    # this server (AmazonBlockedError), fall back to the
+    # ScraperAPI Amazon Product API instead of failing the
+    # whole request -- both return the same Product schema,
+    # so nothing downstream needs to know which one ran.
     # ==================================================
 
-    product = extract_product(request.url)
+    try:
+        product = extract_product(request.url)
+    except AmazonBlockedError:
+        product = fetch_product_from_scraperapi(request.url)
 
     # ==================================================
     # 2. Get specifications
