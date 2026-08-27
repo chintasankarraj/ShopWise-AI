@@ -11,6 +11,7 @@ interface Alternative {
   reason: string;
   url: string;
   availability?: string;
+  verified?: boolean;
 }
 
 interface Props {
@@ -103,11 +104,20 @@ export default function AlternativesCard({
 
               </div>
 
-              {/* Availability */}
+              {/* Availability -- only a confirmed listing gets the
+                  green "available" styling; anything we couldn't
+                  verify is shown with a neutral, honest badge
+                  instead of implying it's in stock. */}
               {item.availability && (
                 <div className="mt-5">
 
-                  <span className="inline-flex rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1 text-xs font-medium text-green-400">
+                  <span
+                    className={
+                      item.verified
+                        ? "inline-flex rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1 text-xs font-medium text-green-400"
+                        : "inline-flex rounded-full border border-slate-600/40 bg-slate-700/30 px-3 py-1 text-xs font-medium text-gray-400"
+                    }
+                  >
                     {item.availability}
                   </span>
 

@@ -269,6 +269,78 @@ def _score_smartphone(specs):
                 "High Performance Processor"
             )
 
+        # ----------------------------------------------------
+        # Samsung Exynos
+        #
+        # Exynos is a distinct SKU-per-chip lineup (not a
+        # single-leading-digit generation scheme like
+        # Dimensity), so each recognized model is matched by
+        # its full number rather than a numeric prefix. Point
+        # values mirror the equivalent Snapdragon/Dimensity
+        # tier for the same performance class -- newest
+        # flagship-class chips (2200/2400/2500) land at the
+        # same 23 points as Dimensity 9, the older 2100
+        # flagship at the same 21 as Dimensity 8, and so on
+        # down the scale. Any other/older Exynos model still
+        # gets recognized (11 points, "lower-mid-range") rather
+        # than falling into the generic unidentified-processor
+        # bucket below.
+        # ----------------------------------------------------
+
+        elif _contains_any(
+            processor,
+            [
+                "exynos 2200",
+                "exynos 2400",
+                "exynos 2500",
+            ]
+        ):
+
+            performance_score = 23
+            reasons.append(
+                "Flagship Performance Processor"
+            )
+
+        elif "exynos 2100" in processor:
+
+            performance_score = 21
+            reasons.append(
+                "High Performance Processor"
+            )
+
+        elif _contains_any(
+            processor,
+            [
+                "exynos 1380",
+                "exynos 1480",
+            ]
+        ):
+
+            performance_score = 18
+            reasons.append(
+                "Upper Midrange Processor"
+            )
+
+        elif _contains_any(
+            processor,
+            [
+                "exynos 1280",
+                "exynos 1330",
+            ]
+        ):
+
+            performance_score = 16
+            reasons.append(
+                "Good Midrange Processor"
+            )
+
+        elif "exynos" in processor:
+
+            performance_score = 11
+            reasons.append(
+                "Entry-Level Processor"
+            )
+
         else:
 
             performance_score = 8

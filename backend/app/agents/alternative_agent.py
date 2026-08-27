@@ -11,7 +11,11 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-from app.data.curated_alternatives import get_curated_alternatives
+from app.services.product_extractor import extract_asin
+from app.services.scraperapi_product_provider import (
+    fetch_product_from_scraperapi,
+    ScraperAPIProviderError,
+)
 
 
 load_dotenv()
@@ -232,6 +236,185 @@ def _is_retailer_domain(url):
         )
         for retailer in RETAILER_DOMAINS
     )
+
+
+# ============================================================
+# AVAILABILITY VERIFICATION
+#
+# Gemini and DuckDuckGo can both surface real Amazon.in product
+# URLs, but neither confirms the listing is actually still
+# purchasable -- that's what let stale/discontinued models
+# through. This reuses the exact ScraperAPI infrastructure the
+# main /analyze flow already relies on (rather than a direct
+# Amazon scrape, which would hit the same geo-blocking issue
+# from this server that the ScraperAPI fallback was built to
+# work around in the first place) to fetch the candidate's own
+# listing and confirm it before it's shown as available.
+# ============================================================
+
+_OUT_OF_STOCK_MARKERS = [
+    "unavailable",
+    "out of stock",
+    "discontinued",
+    "no longer available",
+    "not available",
+]
+
+
+def _amazon_asin_if_verifiable(url):
+    """
+    Return the ASIN if `url` is an amazon.in product URL,
+    otherwise None. Domain-gated (not just a path-pattern
+    match) so a non-Amazon URL that happens to contain a
+    similar-looking path segment is never mistaken for one.
+    """
+
+    domain = _domain(
+        url
+    )
+
+    if domain != "amazon.in" and not domain.endswith(".amazon.in"):
+        return None
+
+    return extract_asin(
+        url
+    )
+
+
+def _verify_amazon_availability(url):
+    """
+    Attempt to confirm a candidate is currently purchasable by
+    fetching its real Amazon.in listing.
+
+    Returns a ("status", price, availability_text) tuple:
+
+    - "verified": the listing resolved with a real price
+      (ScraperAPI omits price entirely for out-of-stock
+      listings, so a confirmed price is itself a strong
+      in-stock signal, on top of the explicit text check
+      below).
+    - "unavailable": the listing resolved but its own
+      availability text says it's out of stock/discontinued --
+      the caller should drop this candidate rather than show
+      it, since we have positive evidence it isn't purchasable.
+    - "unknown": verification could not be attempted or failed
+      (non-Amazon URL, no SCRAPERAPI_KEY configured, network
+      error, etc) -- the caller should label this candidate as
+      unverified rather than claim it's available.
+    """
+
+    asin = _amazon_asin_if_verifiable(
+        url
+    )
+
+    if not asin:
+        return "unknown", None, None
+
+    try:
+
+        verified_product = fetch_product_from_scraperapi(
+            url
+        )
+
+    except ScraperAPIProviderError as error:
+
+        print(
+            "Alternative verification unavailable:",
+            str(error)
+        )
+
+        return "unknown", None, None
+
+    except Exception as error:
+
+        print(
+            "Alternative verification failed:",
+            str(error)
+        )
+
+        return "unknown", None, None
+
+    availability_text = (
+        verified_product.availability or ""
+    ).lower()
+
+    if any(
+        marker in availability_text
+        for marker in _OUT_OF_STOCK_MARKERS
+    ):
+
+        return "unavailable", None, None
+
+    if not verified_product.price:
+
+        return "unknown", None, None
+
+    return (
+        "verified",
+        verified_product.price,
+        verified_product.availability or "In Stock",
+    )
+
+
+def _verify_and_label_alternatives(alternatives):
+    """
+    Run availability verification over a validated candidate
+    list. Candidates confirmed unavailable are dropped;
+    candidates that verify are given their real, current price
+    and availability text; candidates that simply couldn't be
+    verified keep their place but are honestly labeled instead
+    of implying confirmed availability.
+    """
+
+    labeled = []
+
+    for item in alternatives:
+
+        status, price, availability = _verify_amazon_availability(
+            item.get("url", "")
+        )
+
+        if status == "unavailable":
+
+            print(
+                "Dropping alternative (confirmed unavailable):",
+                item.get("name")
+            )
+
+            continue
+
+        if status == "verified":
+
+            print(
+                "Verified alternative availability:",
+                item.get("name"),
+                "|",
+                price
+            )
+
+            labeled.append(
+                {
+                    **item,
+                    "price": price,
+                    "availability": availability,
+                    "verified": True,
+                }
+            )
+
+            continue
+
+        # status == "unknown" -- keep the candidate, but never
+        # claim availability we couldn't confirm.
+
+        labeled.append(
+            {
+                **item,
+                "availability": "Availability could not be verified",
+                "verified": False,
+            }
+        )
+
+    return labeled
 
 
 def _normalize_name(name):
@@ -1280,20 +1463,34 @@ def find_alternatives(
     specs
 ):
     """
-    Find up to 3 current alternatives.
+    Find up to 3 current, verifiably-purchasable alternatives.
 
     Strategy:
 
-    1. Try Gemini + Google Search grounding.
-    2. Validate Gemini results.
-    3. If Gemini fails or quota is exhausted,
-       use free DuckDuckGo fallback.
-    4. If the web fallback also returns nothing (e.g.
-       DuckDuckGo anti-bot-gated the request), fall back to
-       a small curated, clearly-labeled local dataset so the
-       feature is never silently empty.
-    5. Never fabricate prices or claim unverified
-       availability.
+    1. Try Gemini + Google Search grounding, then validate
+       (real name, real non-search-page URL, not the current
+       product, reason present).
+    2. Verify each validated candidate's real-world
+       availability by fetching its own Amazon.in listing
+       through the ScraperAPI infrastructure the main /analyze
+       flow already relies on. Candidates confirmed unavailable
+       are dropped; candidates we simply can't verify (non-
+       Amazon URL, fetch failure, missing API key) are kept but
+       honestly labeled "Availability could not be verified"
+       instead of being shown as available.
+    3. If Gemini produces nothing verifiable, repeat the same
+       validate-then-verify process against a free DuckDuckGo
+       web-search fallback.
+    4. If neither tier produces a single verifiable/legitimate
+       alternative, return an empty list. A static curated list
+       of past popular models can never be confirmed as
+       currently purchasable, so no such fallback is used here
+       -- presenting one as a live recommendation is exactly
+       the stale-alternatives problem this is fixing. The
+       frontend already shows a graceful "No Current
+       Alternatives Found" state for an empty list.
+    5. Never fabricate prices, URLs, ASINs, or claim
+       availability that wasn't actually confirmed.
     """
 
     specification_data = _serialize_specs(
@@ -1326,16 +1523,24 @@ def find_alternatives(
         product
     )
 
-    if valid_gemini_results:
+    verified_gemini_results = _verify_and_label_alternatives(
+        valid_gemini_results
+    )
+
+    if verified_gemini_results:
 
         print(
             "Using Gemini-grounded alternatives:",
-            len(valid_gemini_results)
+            len(verified_gemini_results)
+        )
+
+        print(
+            "============================================================\n"
         )
 
         return {
             "alternatives":
-                valid_gemini_results[:3]
+                verified_gemini_results[:3]
         }
 
     # ========================================================
@@ -1343,7 +1548,7 @@ def find_alternatives(
     # ========================================================
 
     print(
-        "Gemini alternatives unavailable."
+        "Gemini alternatives unavailable or none verifiable."
     )
 
     print(
@@ -1355,11 +1560,15 @@ def find_alternatives(
         specification_data
     )
 
-    if fallback_results:
+    verified_fallback_results = _verify_and_label_alternatives(
+        fallback_results
+    )
+
+    if verified_fallback_results:
 
         print(
             "Fallback alternatives found:",
-            len(fallback_results)
+            len(verified_fallback_results)
         )
 
         print(
@@ -1368,45 +1577,21 @@ def find_alternatives(
 
         return {
             "alternatives":
-                fallback_results[:3]
+                verified_fallback_results[:3]
         }
 
     # ========================================================
-    # FINAL FALLBACK: CURATED LOCAL DATASET
+    # NO VERIFIABLE ALTERNATIVES
     # ========================================================
 
     print(
-        "Web-search fallback unavailable."
+        "No verifiable current alternatives found."
     )
-
-    print(
-        "Using curated local dataset."
-    )
-
-    curated_results = get_curated_alternatives(
-        product,
-        category=_detect_category(product)
-    )
-
-    if curated_results:
-
-        print(
-            "Curated alternatives found:",
-            len(curated_results)
-        )
-
-    else:
-
-        print(
-            "No curated alternatives available "
-            "for this category."
-        )
 
     print(
         "============================================================\n"
     )
 
     return {
-        "alternatives":
-            curated_results[:3]
+        "alternatives": []
     }

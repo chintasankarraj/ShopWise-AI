@@ -25,6 +25,131 @@ if api_key:
 
 
 # ============================================================
+# REVIEW TEXT PREPARATION
+#
+# product.review_texts holds the actual scraped review bodies
+# (direct Amazon path only -- the ScraperAPI fallback always
+# sets it to [] since ScraperAPI's structured Amazon endpoint
+# doesn't return review bodies). Capped independently here
+# (not just relying on product_extractor.py's own cap) so a
+# future provider/extractor change can't silently blow up
+# prompt size, and each review is truncated so a handful of
+# very long reviews can't do the same.
+# ============================================================
+
+_MAX_REVIEWS_FOR_PROMPT = 10
+
+_MAX_CHARS_PER_REVIEW = 600
+
+
+def _prepare_review_texts(review_texts):
+
+    cleaned = [
+        str(text).strip()
+        for text in (review_texts or [])
+        if str(text).strip()
+    ]
+
+    limited = cleaned[:_MAX_REVIEWS_FOR_PROMPT]
+
+    return [
+        (
+            text[:_MAX_CHARS_PER_REVIEW] + "…"
+            if len(text) > _MAX_CHARS_PER_REVIEW
+            else text
+        )
+        for text in limited
+    ]
+
+
+def _build_review_section(review_texts, rating, review_count):
+    """
+    Build the REVIEW REPORT block of the Gemini prompt.
+
+    When real review text was scraped, instruct Gemini to
+    analyze ONLY that text. When none was scraped, keep the
+    existing honest "Not Available" instruction unchanged --
+    the aggregate rating/count are visible elsewhere in the
+    prompt as product metadata but must never be treated as
+    sentiment evidence on their own.
+    """
+
+    if not review_texts:
+
+        return """
+============================================================
+REVIEW REPORT
+============================================================
+
+Actual customer review text is NOT available for this
+product listing.
+
+Therefore return:
+
+"overall_sentiment": "Not Available"
+
+"top_pros": []
+
+"top_cons": []
+
+"common_complaints": []
+
+"best_for": "Not Available"
+
+Do not generate customer opinions from specifications, and
+do not treat the aggregate star rating or review count alone
+as evidence of sentiment.
+"""
+
+    formatted_reviews = "\n\n".join(
+        f"Review {index}: {text}"
+        for index, text in enumerate(review_texts, start=1)
+    )
+
+    return f"""
+============================================================
+REVIEW REPORT
+============================================================
+
+Below is REAL customer review text scraped directly from
+this product's listing ({len(review_texts)} review(s)).
+
+The aggregate star rating ({rating}) and review count
+({review_count}) shown in the PRODUCT section above are
+metadata ONLY. Do NOT use them as sentiment evidence by
+themselves -- base the entire review analysis strictly on
+the review text below.
+
+CUSTOMER REVIEWS:
+{formatted_reviews}
+
+Using ONLY the review text above:
+
+"overall_sentiment": one of "Positive", "Neutral",
+"Negative", or "Mixed", based on what the reviews actually
+say.
+
+"top_pros": up to 4 short positive themes explicitly
+present in the reviews (empty list if none).
+
+"top_cons": up to 4 short negative themes explicitly
+present in the reviews (empty list if none).
+
+"common_complaints": recurring specific issues raised by
+reviewers, if any (empty list if none).
+
+"best_for": a short phrase describing who this product
+suits, based on what reviewers actually said (fall back to
+"General users" if the reviews don't indicate a specific
+use case).
+
+Do NOT invent a review that isn't present above. Do NOT
+infer sentiment from product specifications or from the
+star rating/review count alone.
+"""
+
+
+# ============================================================
 # AI INSIGHTS
 # ============================================================
 
@@ -54,7 +179,27 @@ def generate_insights(
     """
 
     # ========================================================
-    # 1. SERIALIZE SPECIFICATIONS
+    # 1. PREPARE REVIEW TEXT
+    # ========================================================
+
+    prepared_reviews = _prepare_review_texts(
+        getattr(product, "review_texts", None)
+    )
+
+    review_section = _build_review_section(
+        prepared_reviews,
+        product.rating,
+        product.reviews,
+    )
+
+    print()
+    print(
+        f"REVIEW TEXTS AVAILABLE FOR INSIGHTS: "
+        f"{len(prepared_reviews)}"
+    )
+
+    # ========================================================
+    # 2. SERIALIZE SPECIFICATIONS
     # ========================================================
 
     specification_data = []
@@ -91,7 +236,7 @@ def generate_insights(
             )
 
     # ========================================================
-    # 2. BUILD RAG QUERY
+    # 3. BUILD RAG QUERY
     # ========================================================
 
     rag_query = _build_rag_query(
@@ -109,7 +254,7 @@ def generate_insights(
     print(rag_query)
 
     # ========================================================
-    # 3. RETRIEVE KNOWLEDGE
+    # 4. RETRIEVE KNOWLEDGE
     # ========================================================
 
     try:
@@ -160,7 +305,7 @@ def generate_insights(
     print("=" * 80)
 
     # ========================================================
-    # 4. GENERATE ALTERNATIVES
+    # 5. GENERATE ALTERNATIVES
     # ========================================================
 
     try:
@@ -189,7 +334,7 @@ def generate_insights(
         alternatives = []
 
     # ========================================================
-    # 5. GEMINI UNAVAILABLE
+    # 6. GEMINI UNAVAILABLE
     # ========================================================
 
     if client is None:
@@ -201,7 +346,7 @@ def generate_insights(
         )
 
     # ========================================================
-    # 6. GEMINI PROMPT
+    # 7. GEMINI PROMPT
     # ========================================================
 
     prompt = f"""
@@ -312,27 +457,7 @@ For example:
 
 Do not claim that the retrieved knowledge proves
 specific product performance.
-
-============================================================
-REVIEW REPORT
-============================================================
-
-Actual customer review text is NOT available.
-
-Therefore return:
-
-"overall_sentiment": "Not Available"
-
-"top_pros": []
-
-"top_cons": []
-
-"common_complaints": []
-
-"best_for": "Not Available"
-
-Do not generate customer opinions from specifications.
-
+{review_section}
 ============================================================
 PRICE REPORT
 ============================================================
@@ -405,15 +530,17 @@ Return ONLY valid JSON.
 
 Do not use markdown.
 
-Use exactly:
+Use exactly this shape. Fill "review_report" per the
+REVIEW REPORT instructions above (either the real analysis
+or the "Not Available" values, depending on which applied):
 
 {{
     "review_report": {{
-        "overall_sentiment": "Not Available",
+        "overall_sentiment": "",
         "top_pros": [],
         "top_cons": [],
         "common_complaints": [],
-        "best_for": "Not Available"
+        "best_for": ""
     }},
 
     "price_report": {{
@@ -436,7 +563,7 @@ Use exactly:
 """
 
     # ========================================================
-    # 7. CALL GEMINI
+    # 8. CALL GEMINI
     # ========================================================
 
     try:

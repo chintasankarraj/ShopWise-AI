@@ -1,9 +1,7 @@
 import {
-  BadgeIndianRupee,
   TrendingDown,
   Wallet,
   Sparkles,
-  Clock3,
 } from "lucide-react";
 
 interface Props {
@@ -36,10 +34,6 @@ export default function PriceCard({ report }: Props) {
       ? "The product specifications look reasonable, but price-history data is not available yet."
       : "The available information does not currently indicate strong value for money.";
 
-  const hasSalePrice =
-    report.expected_sale_price &&
-    report.expected_sale_price.toLowerCase() !== "not available";
-
   return (
     <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-8 shadow-2xl backdrop-blur-xl">
 
@@ -67,7 +61,7 @@ export default function PriceCard({ report }: Props) {
       </div>
 
       {/* Price Information */}
-      <div className="mt-10 grid gap-6 md:grid-cols-2">
+      <div className="mt-10">
 
         {/* Current Price */}
         <div className="rounded-3xl border border-slate-700 bg-slate-800/60 p-6 transition duration-300 hover:-translate-y-1 hover:border-green-400/30">
@@ -88,47 +82,6 @@ export default function PriceCard({ report }: Props) {
           <h3 className="mt-5 text-3xl font-bold text-green-400">
             {report.current_value}
           </h3>
-
-        </div>
-
-        {/* Historical / Sale Price */}
-        <div className="rounded-3xl border border-slate-700 bg-slate-800/60 p-6 transition duration-300 hover:-translate-y-1 hover:border-blue-400/30">
-
-          <div className="flex items-center gap-3">
-
-            {hasSalePrice ? (
-              <BadgeIndianRupee
-                size={24}
-                className="text-blue-400"
-              />
-            ) : (
-              <Clock3
-                size={24}
-                className="text-gray-500"
-              />
-            )}
-
-            <p className="text-sm uppercase tracking-[0.2em] text-gray-500">
-              Expected Sale Price
-            </p>
-
-          </div>
-
-          <h3
-            className={`mt-5 text-3xl font-bold ${
-              hasSalePrice
-                ? "text-blue-400"
-                : "text-gray-500"
-            }`}
-          >
-            {report.expected_sale_price}
-          </h3>
-
-          {!hasSalePrice && (
-            <p className="mt-3 text-sm leading-6 text-gray-500">
-              Historical price data is not available yet.
-            </p>
-          )}
 
         </div>
 
@@ -175,29 +128,6 @@ export default function PriceCard({ report }: Props) {
         </p>
 
       </div>
-
-      {/* Data Availability Notice */}
-      {!hasSalePrice && (
-        <div className="mt-5 rounded-2xl border border-yellow-500/20 bg-yellow-500/5 p-4">
-
-          <div className="flex items-start gap-3">
-
-            <Clock3
-              size={20}
-              className="mt-1 shrink-0 text-yellow-400"
-            />
-
-            <p className="text-sm leading-6 text-gray-400">
-              ShopWise-AI currently evaluates the listed price and
-              product specifications. Historical price tracking will
-              be added to provide better buy-now, wait, and price-drop
-              recommendations.
-            </p>
-
-          </div>
-
-        </div>
-      )}
 
     </section>
   );

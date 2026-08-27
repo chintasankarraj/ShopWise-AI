@@ -51,6 +51,7 @@ export interface Alternative {
   reason: string;
   url: string;
   availability?: string;
+  verified?: boolean;
 }
 
 export interface ProductAnalysis {

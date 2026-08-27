@@ -82,7 +82,7 @@ export default function Dashboard() {
             product={result.product}
           />
 
-          <section className="grid gap-8 lg:grid-cols-2">
+          <section className="grid items-start gap-8 lg:grid-cols-2">
 
             <RecommendationCard
               analysis={result.analysis}
@@ -94,7 +94,7 @@ export default function Dashboard() {
 
           </section>
 
-          <section className="grid gap-8 lg:grid-cols-2">
+          <section className="grid items-start gap-8 lg:grid-cols-2">
 
             <ReviewCard
               report={result.review_report}
