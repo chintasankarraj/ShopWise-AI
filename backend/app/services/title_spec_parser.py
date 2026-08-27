@@ -94,8 +94,15 @@ def extract_title_specifications(title: str) -> list[dict]:
     # Display Size
     # --------------------------------------------------
 
+    # Titles use the quote/prime symbol ("6.77\""); prose --
+    # feature bullets in particular -- tends to spell it out
+    # instead ("6.77 inch"). A bare "in" abbreviation is
+    # deliberately not accepted here: it's too common inside
+    # unrelated words/phrases ("Built-in", "in Ear") to be a
+    # safe signal.
     display_size = re.search(
-        r'(\d+(?:\.\d+)?)["″]\s*(?:\d+\s*Hz\s*)?(?:TrueColour\s*)?(AMOLED|OLED|LCD|IPS)?',
+        r'(\d+(?:\.\d+)?)\s*(?:["″]|inch(?:es)?\b)\s*'
+        r'(?:\d+\s*Hz\s*)?(?:TrueColour\s*)?(AMOLED|OLED|LCD|IPS)?',
         text,
         re.IGNORECASE,
     )
@@ -139,6 +146,14 @@ def extract_title_specifications(title: str) -> list[dict]:
         r"(MediaTek\s+[A-Za-z0-9\s]+?)(?=\s*\||\s*\d+MP|\s*$)",
         r"(Apple\s+A\d+\s*(?:Bionic|Pro)?)",
         r"(Exynos\s+[A-Za-z0-9\s]+?)(?=\s*\||\s*\d+MP|\s*$)",
+        # Laptop chips (Intel/AMD). Appended after the phone
+        # chipset patterns above rather than interleaved, since a
+        # title never matches both groups and this keeps the
+        # existing phone-pattern priority/order untouched.
+        r"((?:\d+(?:st|nd|rd|th)\s+Gen\s+)?Intel\s+Core\s+i[3579](?:-[A-Za-z0-9]+)?)",
+        r"(Intel\s+(?:Celeron|Pentium)(?:\s+[A-Za-z0-9]+)?)",
+        r"(AMD\s+Ryzen\s+[3579](?:\s+[A-Za-z0-9]+)?)",
+        r"(Ryzen\s+[3579](?:\s+[A-Za-z0-9]+)?)",
     ]
 
     for pattern in processor_patterns:

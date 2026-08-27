@@ -139,6 +139,16 @@ def detect_category(title: str, specifications: list) -> str:
     ):
         return "television"
 
+    # Real listings often separate "TV" from its qualifier with
+    # a brand/platform word in between (e.g. "Smart Google TV",
+    # "4K ... Google TV"), so the exact-phrase keywords above
+    # miss them. Falling back to "TV" as a standalone word
+    # catches these without matching unrelated tokens like
+    # "TVS" (word boundary requires "tv" not be glued to
+    # another letter).
+    if re.search(r"\btv\b", combined_text):
+        return "television"
+
     # ---------------------------------------------------------
     # 6. Camera
     # ---------------------------------------------------------
