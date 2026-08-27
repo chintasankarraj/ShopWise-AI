@@ -1,6 +1,48 @@
 import re
 
 
+def _normalize_spec_dict(specifications):
+    """
+    Build a {lowercased name: lowercased value} lookup out of the
+    same specification objects detect_category already accepts
+    (Pydantic models or dicts), so structural checks can target a
+    specific field instead of a raw concatenated-text search.
+    """
+
+    normalized = {}
+
+    for spec in specifications or []:
+
+        if isinstance(spec, dict):
+            name = spec.get("name", "")
+            value = spec.get("value", "")
+
+        else:
+            name = getattr(spec, "name", "")
+            value = getattr(spec, "value", "")
+
+        if not name:
+            continue
+
+        normalized[str(name).lower().strip()] = str(value).lower().strip()
+
+    return normalized
+
+
+def _spec_value(specs_dict, keywords):
+    """
+    First specification value whose (lowercased) name contains
+    one of the given keywords.
+    """
+
+    for keyword in keywords:
+        for name, value in specs_dict.items():
+            if keyword in name:
+                return value
+
+    return None
+
+
 def detect_category(title: str, specifications: list) -> str:
     """
     Detect the product category using both the product title
@@ -212,7 +254,84 @@ def detect_category(title: str, specifications: list) -> str:
         return "appliance"
 
     # ---------------------------------------------------------
-    # 9. Generic electronics
+    # 9. Structural fallback for smartphone / laptop
+    #
+    # A real listing's title sometimes omits every generic
+    # category noun ("phone", "mobile", "laptop"...) and its
+    # scraped specs can likewise omit a helpful "Item Type"
+    # field, so the keyword checks above find nothing even
+    # though the specifications themselves clearly describe a
+    # phone or a laptop. This only runs after every more
+    # specific keyword category above has already had a chance
+    # to match, so it can't override an explicit tablet/TV/
+    # camera/appliance/etc. classification -- it only rescues
+    # products that would otherwise fall through to generic
+    # "electronics"/"other".
+    # ---------------------------------------------------------
+
+    specs_dict = _normalize_spec_dict(specifications)
+
+    # Deliberately just "operating system", not a bare "os" --
+    # "os" as a loose substring would false-positive on unrelated
+    # field names like "Cross Platform Support" or "Hosting".
+    operating_system = _spec_value(
+        specs_dict,
+        ["operating system"],
+    )
+
+    screen_size_text = _spec_value(
+        specs_dict,
+        ["screen size", "display size"],
+    )
+
+    screen_inches = None
+
+    if screen_size_text:
+        size_match = re.search(r"\d+(?:\.\d+)?", screen_size_text)
+        if size_match:
+            screen_inches = float(size_match.group())
+
+    is_mobile_os = bool(operating_system) and (
+        "android" in operating_system
+        or "ios" in operating_system
+    )
+
+    has_cellular_generation = bool(
+        re.search(r"\b[45]g\b", combined_text)
+    )
+
+    looks_like_smartphone = (
+        is_mobile_os
+        and has_cellular_generation
+        and (screen_inches is None or screen_inches <= 7.2)
+    )
+
+    if looks_like_smartphone:
+        return "smartphone"
+
+    is_desktop_os = bool(operating_system) and (
+        "windows" in operating_system
+        or "mac os" in operating_system
+        or "macos" in operating_system
+    )
+
+    has_computer_memory_fields = bool(
+        _spec_value(specs_dict, ["ram", "memory"])
+    ) and bool(
+        _spec_value(specs_dict, ["storage", "hard drive", "ssd"])
+    )
+
+    looks_like_laptop = (
+        is_desktop_os
+        and has_computer_memory_fields
+        and (screen_inches is None or screen_inches >= 9.0)
+    )
+
+    if looks_like_laptop:
+        return "laptop"
+
+    # ---------------------------------------------------------
+    # 10. Generic electronics
     # ---------------------------------------------------------
 
     electronics_keywords = [
@@ -231,7 +350,7 @@ def detect_category(title: str, specifications: list) -> str:
         return "electronics"
 
     # ---------------------------------------------------------
-    # 10. Fallback
+    # 11. Fallback
     # ---------------------------------------------------------
 
     return "other"

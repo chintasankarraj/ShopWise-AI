@@ -22,6 +22,68 @@ _CHARGING_WATT_PATTERN = re.compile(
 )
 
 
+# Bare Apple Silicon chip names -- "m1".."m4", optionally followed
+# by "ultra"/"max"/"pro" (e.g. "m3", "m3 pro", "m2 max", "m1
+# ultra"). Bounded on both sides so it can't match inside an
+# unrelated token. This alone would also match Intel's old "Core
+# m3/m5/m7" (Y-series) branding, so callers must additionally
+# require the word "apple" to appear in the same string before
+# treating a match as Apple Silicon -- Amazon's own MacBook
+# listings always include "Apple" in the processor field, so this
+# costs no real recall while closing that collision.
+_APPLE_SILICON_PATTERN = re.compile(
+    r"(?<![a-z0-9])m([1-4])(?:\s+(ultra|max|pro))?(?![a-z0-9])"
+)
+
+# Snapdragon X-series laptop chips -- "Snapdragon X Elite" /
+# "Snapdragon X Plus" / bare "Snapdragon X" (unspecified variant).
+# Deliberately does NOT match "Snapdragon 8 Elite" or other
+# Snapdragon *phone* chips, since there is no literal "x" token
+# right after "snapdragon" in those.
+_SNAPDRAGON_X_PATTERN = re.compile(
+    r"snapdragon\s*x\s*(elite|plus)?\b"
+)
+
+# A dedicated GPU model number stated as "RTX 4050", "GTX 1650",
+# "Radeon RX 6600", or "Arc A730"/"Arc B580" -- the vendor tokens
+# most laptop-GPU listings on Amazon actually use.
+_GPU_DEDICATED_MODEL_PATTERN = re.compile(
+    r"\b(?:rtx|gtx|radeon\s*rx|arc\s*[ab])\s*(\d{3,4})\b"
+)
+
+# A newer/higher-end *integrated* AMD Radeon iGPU model number
+# (e.g. "Radeon 780M", "Radeon 610M") -- distinct from the
+# dedicated Radeon RX pattern above (no "rx" token).
+_GPU_INTEGRATED_AMD_MODEL_PATTERN = re.compile(
+    r"\bradeon\s*(\d{3})m?\b"
+)
+
+# An explicit "<N>-core GPU" figure, as Apple's own listings state
+# (e.g. "8‑core CPU and 10‑core GPU") -- brand-neutral: matches
+# whichever vendor's listing happens to state a GPU core count.
+_GPU_CORE_COUNT_PATTERN = re.compile(
+    r"(\d+)[\s‑-]*core\s*gpu"
+)
+
+_ARC_BRAND_PATTERN = re.compile(r"\barc\b")
+_IRIS_XE_PATTERN = re.compile(r"\biris\s*xe\b")
+
+# A refresh rate stated in prose (e.g. buried inside a Display
+# field's own value) -- requires the literal "Hz" unit so an
+# unrelated number can never be misread as a refresh rate.
+_REFRESH_RATE_TEXT_PATTERN = re.compile(
+    r"\b(\d{2,3})\s*hz\b"
+)
+
+# A battery capacity explicitly stated in watt-hours ("52.6 Watt
+# Hours", "52.6Wh", "52.6 wh") -- requires the unit so a duration
+# ("18 Hours") or a non-numeric descriptor ("Lithium Ion") is
+# never misread as a capacity figure.
+_WATT_HOUR_UNIT_PATTERN = re.compile(
+    r"\d\s*(?:watt[\s-]?hours?|wh)\b"
+)
+
+
 # ============================================================
 # HELPERS
 # ============================================================
@@ -62,13 +124,26 @@ def _normalize_specs(specs):
     return normalized
 
 
-def _find_spec(specs, keywords):
+def _find_spec(specs, keywords, exclude=None):
     """
     Find the best matching specification.
 
     Prefers exact/strong matches and avoids accidentally
-    selecting unrelated fields.
+    selecting unrelated fields. `exclude` is an optional list of
+    substrings that disqualify a field name outright regardless
+    of which pass would otherwise match it -- used so a
+    "Video Processor"/"Graphics Co Processor" (GPU) field can
+    never be mistaken for the CPU, even when no dedicated
+    processor field exists at all.
     """
+
+    exclude = [
+        term.lower().strip()
+        for term in (exclude or [])
+    ]
+
+    def _is_excluded(name):
+        return any(term in name for term in exclude)
 
     # First pass: exact keyword in specification name
     for keyword in keywords:
@@ -77,15 +152,40 @@ def _find_spec(specs, keywords):
 
         for name, value in specs.items():
 
+            if _is_excluded(name):
+                continue
+
             if name == keyword:
                 return value
 
-    # Second pass: keyword contained in specification name
+    # Second pass: specification name starts with the keyword
+    # (e.g. "processor type", "cpu model"). This is checked
+    # before the loose "keyword anywhere in name" pass below so
+    # a compound field that merely *mentions* the keyword at the
+    # end -- like "video processor" for a "processor" lookup --
+    # can't outrank the actual dedicated field.
     for keyword in keywords:
 
         keyword = keyword.lower().strip()
 
         for name, value in specs.items():
+
+            if _is_excluded(name):
+                continue
+
+            if name.startswith(keyword):
+                return value
+
+    # Third pass: keyword contained anywhere in specification
+    # name (last-resort fallback, unchanged from before).
+    for keyword in keywords:
+
+        keyword = keyword.lower().strip()
+
+        for name, value in specs.items():
+
+            if _is_excluded(name):
+                continue
 
             if keyword in name:
                 return value
@@ -137,6 +237,25 @@ def _number(value):
         )
 
     return None
+
+
+def _normalize_unit_spacing(value):
+    """
+    Collapse whitespace/hyphen separators between a digit and the
+    unit letters that follow it, so "1 TB", "1-TB", and "1TB" all
+    compare equal to the same substring checks. Does not touch
+    the digits or letters themselves, so already-tight values
+    ("1tb") pass through unchanged.
+    """
+
+    if not value:
+        return value
+
+    return re.sub(
+        r"(\d)[\s-]+(?=[a-zA-Z])",
+        r"\1",
+        value,
+    )
 
 
 def _contains_any(value, keywords):
@@ -331,6 +450,340 @@ def _extract_resolution_from_display(display_value):
 
 
 # ============================================================
+# LAPTOP SCORING HELPERS
+# ============================================================
+
+def _apple_silicon_tier(cpu):
+    """
+    Evidence-based tier for an Apple Silicon laptop chip, derived
+    from Apple's own product-line hierarchy (base < Pro < Max /
+    Ultra), slotted into the SAME point buckets already used for
+    Intel/AMD (no new point values invented). Requires "apple" to
+    co-occur in the string -- see _APPLE_SILICON_PATTERN's comment
+    for why. Returns None for any non-Apple-Silicon string.
+    """
+
+    if "apple" not in cpu:
+        return None
+
+    match = _APPLE_SILICON_PATTERN.search(cpu)
+
+    if not match:
+        return None
+
+    variant = match.group(2)
+
+    if variant in ("ultra", "max"):
+        return 30, "Flagship Processor"
+
+    elif variant == "pro":
+        return 27, "High Performance Processor"
+
+    else:
+        return 23, "Powerful Processor"
+
+
+def _snapdragon_x_tier(cpu):
+    """
+    Evidence-based tier for a Snapdragon X-series laptop chip.
+    X Elite is genuinely flagship/H-series-class in real-world
+    multi-core benchmarks -- tiered at the same bucket as i7/
+    Ultra 7/Ryzen 7, not i9, to stay conservative rather than
+    overclaim. X Plus is a cut-down variant of the same family,
+    one bucket down. A bare "Snapdragon X" with no stated variant
+    returns None so the caller's existing generic fallback
+    handles it -- we don't know enough to pick a tier.
+    """
+
+    match = _SNAPDRAGON_X_PATTERN.search(cpu)
+
+    if not match:
+        return None
+
+    variant = match.group(1)
+
+    if variant == "elite":
+        return 27, "High Performance Processor"
+
+    elif variant == "plus":
+        return 23, "Powerful Processor"
+
+    return None
+
+
+_PANEL_TECH_RANK = {
+    "oled": 3,
+    "ips": 2,
+    "lcd": 1,
+    "led": 1,
+}
+
+
+def _laptop_panel_tech(specs):
+    """
+    Some real listings expose the actual panel technology only in
+    a separate "Display Technology" field while the primary
+    "Display" field states just the generic backlight type
+    ("LED") -- e.g. a real audited gaming laptop's "Display" field
+    said "LED" while "Display Technology" separately said "Ips".
+    Checks every Display/Screen/Panel-named field and keeps
+    whichever value names the MOST SPECIFIC recognized panel
+    technology, rather than trusting whichever field a plain
+    keyword lookup happens to resolve to first.
+    """
+
+    candidates = _find_all_specs(
+        specs,
+        ["display", "screen", "panel"],
+    )
+
+    best_tech = None
+    best_rank = -1
+
+    for _name, value in candidates:
+
+        for tech, rank in _PANEL_TECH_RANK.items():
+
+            if tech in value and rank > best_rank:
+                best_tech = tech
+                best_rank = rank
+
+    return best_tech
+
+
+def _dedicated_gpu_tier(model_number):
+    """
+    Tiers a dedicated GPU by its model number, within its own
+    vendor's naming convention -- NVIDIA/Intel encode the tier in
+    the last two digits (4050/4060/4070/4080/4090), while AMD's
+    Radeon RX line encodes it in the hundreds digit instead
+    (RX 7600/7700/7800/7900, always a round hundred). Applying the
+    tens-place rule to an AMD number would misread e.g. 7800 as
+    tier "00" -- so an AMD-shaped (round-hundred) number gets its
+    own, coarser bucket boundaries instead of being forced onto
+    NVIDIA's finer-grained scale.
+    """
+
+    remainder = model_number % 1000
+
+    if remainder != 0 and remainder % 100 == 0:
+
+        hundreds = remainder // 100
+
+        if hundreds >= 9:
+            return 12, "Flagship Dedicated GPU"
+
+        elif hundreds >= 7:
+            return 10, "High-End Dedicated GPU"
+
+        elif hundreds >= 6:
+            return 8, "Capable Dedicated GPU"
+
+        else:
+            return 6, "Entry Dedicated GPU"
+
+    suffix = model_number % 100
+
+    if suffix >= 80:
+        return 12, "Flagship Dedicated GPU"
+
+    elif suffix >= 70:
+        return 10, "High-End Dedicated GPU"
+
+    elif suffix >= 60:
+        return 8, "Capable Dedicated GPU"
+
+    elif suffix >= 40:
+        return 6, "Entry Dedicated GPU"
+
+    else:
+        return 4, "Dedicated GPU Detected"
+
+
+def _dedicated_gpu_tier_from_vram(vram_gb):
+    """
+    Fallback dedicated-GPU tiering by VRAM size, used only when no
+    recognizable model number could be read from the GPU-text
+    fields -- a real audited gaming laptop's "Graphics Co
+    Processor" field named its CPU's integrated-graphics brand
+    instead of its actual discrete GPU, while "Graphics Ram Size"
+    (a separate, structured field) correctly stated the real
+    card's dedicated VRAM.
+
+    Thresholds follow the real-world VRAM bands entry/capable/
+    high-end/flagship dedicated laptop GPUs actually ship with
+    across recent generations (entry-tier RTX 3050/4050-class
+    cards commonly carry 6GB; 8GB is the common capable/upper-mid
+    band; 10-12GB+ is high-end/flagship) -- calibrated against
+    that general landscape, not against any single tested product.
+    A round-trip check: this must never rate a VRAM-only reading
+    higher than what the SAME real card would score via a reliable
+    model number on the sibling function above, for any VRAM size
+    a model-number-tiered card in that bucket would actually ship
+    with -- see test_laptop_scoring_round2.py's cross-path parity
+    checks.
+    """
+
+    if vram_gb >= 16:
+        return 12, "Flagship Dedicated GPU"
+
+    elif vram_gb >= 10:
+        return 10, "High-End Dedicated GPU"
+
+    elif vram_gb >= 8:
+        return 8, "Capable Dedicated GPU"
+
+    elif vram_gb >= 6:
+        return 6, "Entry Dedicated GPU"
+
+    else:
+        return 4, "Dedicated GPU Detected"
+
+
+def _score_laptop_gpu(specs, title=None):
+    """
+    Laptop GPU dimension. "Graphics Card Description"/"Graphics
+    Description" (Dedicated vs Integrated) is the one field this
+    session's real-product audit found consistently present and
+    reliable across every tested laptop, so it gates everything
+    else -- a laptop is never credited with a dedicated-GPU tier
+    unless this field actually says so.
+
+    Within a confirmed-dedicated laptop, the specific model text
+    is not always reliable: try the model-number pattern first,
+    fall back to the also-structured VRAM size, and if neither is
+    available, credit only that a dedicated GPU exists (never
+    invent a specific tier from nothing).
+
+    Integrated graphics are NOT rewarded merely for existing --
+    only recognized, capability-differentiating evidence (Iris Xe,
+    Arc branding, a newer high-end integrated AMD Radeon model, or
+    an explicit "N-core GPU" figure as Apple's listings state)
+    earns a modest bonus. The title is checked only as a last
+    resort for this same narrow integrated-capability evidence
+    (e.g. "Intel Arc Graphics" sometimes appears only in the
+    title, never in a structured field) -- it is never used to
+    promote a laptop into the dedicated tier, since that would
+    override the structured Dedicated/Integrated field.
+    """
+
+    description = _find_spec(
+        specs,
+        ["graphics card description", "graphics description"],
+    )
+
+    gpu_text_fields = _find_all_specs(
+        specs,
+        ["graphics co processor", "video processor", "cpu model number"],
+    )
+
+    gpu_text = " ".join(value for _name, value in gpu_text_fields)
+
+    is_dedicated = bool(description) and "dedicated" in description
+
+    if is_dedicated:
+
+        model_match = _GPU_DEDICATED_MODEL_PATTERN.search(gpu_text)
+
+        if model_match:
+            return _dedicated_gpu_tier(int(model_match.group(1)))
+
+        vram = _number(
+            _find_spec(specs, ["graphics ram size"])
+        )
+
+        if vram:
+            return _dedicated_gpu_tier_from_vram(vram)
+
+        return 4, "Dedicated GPU Detected"
+
+    combined_text = f"{gpu_text} {title or ''}".lower()
+
+    if not combined_text.strip():
+        return 0, None
+
+    core_match = _GPU_CORE_COUNT_PATTERN.search(combined_text)
+
+    if core_match:
+
+        core_count = int(core_match.group(1))
+
+        if core_count >= 16:
+            return 6, "High Core-Count Integrated GPU"
+
+        elif core_count >= 8:
+            return 3, "Capable Integrated Graphics"
+
+    if _IRIS_XE_PATTERN.search(combined_text):
+        return 3, "Capable Integrated Graphics"
+
+    if _ARC_BRAND_PATTERN.search(combined_text):
+        return 3, "Capable Integrated Graphics"
+
+    amd_match = _GPU_INTEGRATED_AMD_MODEL_PATTERN.search(combined_text)
+
+    if amd_match and int(amd_match.group(1)) >= 740:
+        return 3, "Capable Integrated Graphics"
+
+    return 0, None
+
+
+def _looks_like_watt_hour_capacity(value):
+    """
+    True only when `value` explicitly states a watt-hour unit --
+    mirrors _looks_like_battery_capacity's mAh-unit-awareness so a
+    plain duration ("18 Hours") is never misread as a capacity.
+    """
+
+    if not value:
+        return False
+
+    return bool(
+        _WATT_HOUR_UNIT_PATTERN.search(
+            str(value)
+        )
+    )
+
+
+def _extract_laptop_battery_wh(specs):
+    """
+    Laptop battery capacity, in watt-hours. "Battery Cell Type"
+    (e.g. "Lithium Ion") is the most commonly-present battery-
+    named field across real listings but is never numeric, so a
+    plain _find_spec(["battery"]) lookup silently resolves to it
+    and returns nothing -- confirmed live across every laptop in
+    this session's audit, all of which separately stated a real
+    watt-hour figure under a different field name.
+
+    Requires an explicit watt-hour unit before accepting a number
+    (never misreads an Hours duration as capacity), and prefers a
+    field whose name says "energy content" -- the least ambiguous
+    naming for capacity -- over any other battery/power-named
+    field that also happens to state Wh, since "Battery Life" is
+    inconsistently either a duration or, on some listings, itself
+    stated in watt-hours.
+    """
+
+    candidates = _find_all_specs(
+        specs,
+        ["battery", "power"],
+    )
+
+    energy_content_candidates = [
+        (name, value)
+        for name, value in candidates
+        if "energy content" in name
+    ]
+
+    for _name, value in energy_content_candidates + candidates:
+
+        if _looks_like_watt_hour_capacity(value):
+            return _number(value)
+
+    return None
+
+
+# ============================================================
 # SMARTPHONE SCORING
 # ============================================================
 
@@ -350,7 +803,11 @@ def _score_smartphone(specs, title=None):
             "cpu",
             "chipset",
             "chip",
-        ]
+        ],
+        exclude=[
+            "video processor",
+            "graphics",
+        ],
     )
 
     performance_score = 0
@@ -1425,10 +1882,14 @@ def _score_smartphone(specs, title=None):
 # LAPTOP SCORING
 # ============================================================
 
-def _score_laptop(specs):
+def _score_laptop(specs, title=None):
 
     score = 0
     reasons = []
+
+    # ========================================================
+    # PROCESSOR — 30 POINTS
+    # ========================================================
 
     cpu = _find_spec(
         specs,
@@ -1436,7 +1897,11 @@ def _score_laptop(specs):
             "processor",
             "cpu",
             "chip",
-        ]
+        ],
+        exclude=[
+            "video processor",
+            "graphics",
+        ],
     )
 
     if cpu:
@@ -1485,10 +1950,31 @@ def _score_laptop(specs):
 
         else:
 
-            score += 12
-            reasons.append(
-                "Processor Detected"
-            )
+            apple_tier = _apple_silicon_tier(cpu)
+            snapdragon_tier = _snapdragon_x_tier(cpu)
+
+            if apple_tier:
+
+                points, reason = apple_tier
+                score += points
+                reasons.append(reason)
+
+            elif snapdragon_tier:
+
+                points, reason = snapdragon_tier
+                score += points
+                reasons.append(reason)
+
+            else:
+
+                score += 12
+                reasons.append(
+                    "Processor Detected"
+                )
+
+    # ========================================================
+    # RAM — 20 POINTS
+    # ========================================================
 
     ram = _number(
         _find_spec(
@@ -1530,6 +2016,10 @@ def _score_laptop(specs):
                 "Limited RAM"
             )
 
+    # ========================================================
+    # STORAGE — 15 POINTS
+    # ========================================================
+
     storage = _find_spec(
         specs,
         [
@@ -1538,6 +2028,8 @@ def _score_laptop(specs):
             "hard drive",
         ]
     )
+
+    storage = _normalize_unit_spacing(storage)
 
     if storage:
 
@@ -1569,55 +2061,186 @@ def _score_laptop(specs):
                 "SSD Storage"
             )
 
-    display = _find_spec(
+    # ========================================================
+    # DISPLAY — panel 8 + resolution 4 + refresh rate 6 = 18
+    # ========================================================
+
+    panel_tech = _laptop_panel_tech(specs)
+
+    if panel_tech == "oled":
+
+        score += 8
+        reasons.append(
+            "OLED Display"
+        )
+
+    elif panel_tech == "ips":
+
+        score += 5
+        reasons.append(
+            "IPS Display"
+        )
+
+    elif panel_tech in (
+        "lcd",
+        "led",
+    ):
+
+        score += 2
+        reasons.append(
+            "Display Detected"
+        )
+
+    resolution = _find_spec(
         specs,
         [
-            "display",
-            "screen",
             "resolution",
+            "maximum display resolution",
+            "native resolution",
         ]
     )
 
-    if display:
+    if not resolution:
 
-        if "oled" in display:
-
-            score += 15
-            reasons.append(
-                "OLED Display"
-            )
-
-        elif "4k" in display:
-
-            score += 15
-            reasons.append(
-                "4K Display"
-            )
-
-        elif (
-            "2k" in display
-            or "qhd" in display
-        ):
-
-            score += 13
-            reasons.append(
-                "High Resolution Display"
-            )
-
-        elif "fhd" in display:
-
-            score += 10
-            reasons.append(
-                "Full HD Display"
-            )
-
-    battery = _number(
-        _find_spec(
+        display_value = _find_spec(
             specs,
-            [
-                "battery",
-            ]
+            ["display"]
         )
+
+        resolution = _extract_resolution_from_display(
+            display_value
+        )
+
+    if resolution:
+
+        resolution_numbers = re.findall(
+            r"\d{3,5}",
+            resolution
+        )
+
+        if len(resolution_numbers) >= 2:
+
+            try:
+
+                width = int(
+                    resolution_numbers[0]
+                )
+
+                height = int(
+                    resolution_numbers[1]
+                )
+
+                total_pixels = (
+                    width * height
+                )
+
+                if total_pixels >= 3_000_000:
+
+                    score += 4
+                    reasons.append(
+                        "High Resolution Display"
+                    )
+
+                elif total_pixels >= 2_000_000:
+
+                    score += 3
+                    reasons.append(
+                        "Full HD+ Display"
+                    )
+
+                elif total_pixels >= 1_500_000:
+
+                    score += 2
+
+                else:
+
+                    score += 1
+
+            except ValueError:
+
+                pass
+
+    refresh = _find_spec(
+        specs,
+        [
+            "refresh rate",
+            "refresh",
+        ]
+    )
+
+    if not refresh:
+
+        display_value = _find_spec(
+            specs,
+            ["display"]
+        )
+
+        if display_value:
+
+            refresh_match = _REFRESH_RATE_TEXT_PATTERN.search(
+                display_value
+            )
+
+            if refresh_match:
+                refresh = refresh_match.group(0)
+
+    refresh_value = _number(
+        refresh
+    )
+
+    if refresh_value is not None:
+
+        if refresh_value >= 144:
+
+            score += 6
+            reasons.append(
+                "Very High Refresh Rate"
+            )
+
+        elif refresh_value >= 120:
+
+            score += 5
+            reasons.append(
+                "120Hz Display"
+            )
+
+        elif refresh_value >= 90:
+
+            score += 4
+            reasons.append(
+                "90Hz Display"
+            )
+
+        elif refresh_value >= 60:
+
+            score += 2
+
+        else:
+
+            score += 1
+
+    # ========================================================
+    # GPU — up to 12 points
+    # ========================================================
+
+    gpu_points, gpu_reason = _score_laptop_gpu(
+        specs,
+        title=title,
+    )
+
+    if gpu_points:
+
+        score += gpu_points
+        reasons.append(
+            gpu_reason
+        )
+
+    # ========================================================
+    # BATTERY — 10 POINTS
+    # ========================================================
+
+    battery = _extract_laptop_battery_wh(
+        specs
     )
 
     if battery:
@@ -1639,6 +2262,9 @@ def _score_laptop(specs):
         else:
 
             score += 5
+            reasons.append(
+                "Battery Detected"
+            )
 
     return score, reasons
 
@@ -1724,7 +2350,8 @@ def recommend(
     elif category == "laptop":
 
         score, reasons = _score_laptop(
-            normalized_specs
+            normalized_specs,
+            title=title
         )
 
     else:
