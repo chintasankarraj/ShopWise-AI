@@ -33,6 +33,12 @@ services:
       - key: GEMINI_API_KEY
         sync: false
 
+      # ScraperAPI key used as a fallback Amazon product provider
+      # when direct extraction is blocked/geo-gated
+      # (AmazonBlockedError). Same sync: false pattern as above.
+      - key: SCRAPERAPI_KEY
+        sync: false
+
       # Set this to the deployed Vercel frontend URL once known
       # (comma-separate multiple origins if needed).
       - key: FRONTEND_URL
