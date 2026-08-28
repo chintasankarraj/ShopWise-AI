@@ -146,7 +146,7 @@ export default function ProductCard({ product }: Props) {
 
             {/* Clean Product Title */}
 
-            <h2 className="mt-6 text-4xl font-bold leading-tight tracking-tight">
+            <h2 className="mt-6 text-2xl font-bold leading-tight tracking-tight sm:text-3xl lg:text-4xl">
               {cleanTitle}
             </h2>
 

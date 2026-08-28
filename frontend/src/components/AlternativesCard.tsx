@@ -29,7 +29,7 @@ export default function AlternativesCard({
 
         <Sparkles
           size={22}
-          className="text-blue-400"
+          className="text-purple-400"
         />
 
         <div>
@@ -55,14 +55,14 @@ export default function AlternativesCard({
       {/* No alternatives */}
       {alternatives.length === 0 ? (
 
-        <div className="mt-10 rounded-2xl border border-slate-700 bg-slate-800/40 p-8 text-center">
+        <div className="mt-10 rounded-3xl border border-slate-700 bg-slate-800/40 p-10 text-center">
 
           <Sparkles
-            size={32}
+            size={40}
             className="mx-auto text-gray-500"
           />
 
-          <h3 className="mt-4 text-xl font-semibold text-gray-300">
+          <h3 className="mt-5 text-xl font-semibold text-gray-300">
             No Current Alternatives Found
           </h3>
 

@@ -20,17 +20,17 @@ export default function QuickVerdict({ analysis }: Props) {
       : "bg-red-500/20 text-red-400 border-red-500/30";
 
   return (
-    <section className="rounded-3xl border border-slate-800 bg-slate-900/70 backdrop-blur-xl p-8 shadow-xl">
+    <section className="rounded-3xl border border-slate-800 bg-slate-900/70 backdrop-blur-xl p-6 shadow-xl">
 
       <div className="flex flex-col items-center text-center">
 
         <span
-          className={`inline-flex rounded-full border px-5 py-2 text-sm font-semibold ${badgeColor}`}
+          className={`inline-flex rounded-full border px-6 py-2 text-sm font-semibold ${badgeColor}`}
         >
           {analysis.recommendation}
         </span>
 
-        <h2 className="mt-6 text-5xl font-bold text-blue-400">
+        <h2 className="mt-5 text-5xl font-bold text-blue-400">
           {analysis.score}
           <span className="text-2xl text-gray-400"> /100</span>
         </h2>

@@ -88,7 +88,7 @@ export default function AIReportCard({
         </div>
 
         <span
-          className={`rounded-full border px-8 py-3 text-lg font-bold ${badgeColor}`}
+          className={`rounded-full border px-6 py-2 text-sm font-semibold ${badgeColor}`}
         >
           {recommendation}
         </span>

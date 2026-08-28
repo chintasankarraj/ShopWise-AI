@@ -74,7 +74,7 @@ export default function SearchBar({ onAnalyze, loading }: Props) {
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Paste Amazon product URL..."
-          className="min-w-0 flex-1 bg-transparent px-5 py-4 text-lg outline-none placeholder:text-gray-500"
+          className="min-w-0 flex-1 rounded-xl bg-transparent px-5 py-4 text-lg outline-none placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-blue-500/60"
         />
 
         <button

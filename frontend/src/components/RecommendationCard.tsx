@@ -66,7 +66,7 @@ export default function RecommendationCard({ analysis }: Props) {
         </p>
 
         <span
-          className={`mt-6 rounded-full border px-8 py-3 text-lg font-bold shadow-lg ${badgeColor}`}
+          className={`mt-6 rounded-full border px-6 py-2 text-sm font-semibold shadow-lg ${badgeColor}`}
         >
           {analysis.recommendation}
         </span>
