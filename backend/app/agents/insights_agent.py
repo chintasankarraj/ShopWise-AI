@@ -1,7 +1,6 @@
 import json
 import os
 
-from app.agents.alternative_agent import find_alternatives
 from app.rag.retriever import retrieve_context, format_context
 
 from dotenv import load_dotenv
@@ -176,7 +175,8 @@ def generate_insights(
     product,
     specs,
     analysis,
-    category
+    category,
+    alternatives
 ):
     """
     Generate AI-based product insights using:
@@ -195,6 +195,12 @@ def generate_insights(
     - sale prices
     - product specifications
     - alternative products
+
+    `alternatives` must be the already-computed result of a single
+    find_alternatives() call made by the caller (routes/analyze.py)
+    -- this function does not compute its own, so alternatives
+    discovery runs exactly once per /analyze request rather than
+    once here and once in the route.
     """
 
     # ========================================================
@@ -324,33 +330,12 @@ def generate_insights(
     print("=" * 80)
 
     # ========================================================
-    # 5. GENERATE ALTERNATIVES
+    # 5. ALTERNATIVES
+    #
+    # Already computed once by the caller and passed in -- see
+    # the `alternatives` parameter note in this function's
+    # docstring. Not recomputed here.
     # ========================================================
-
-    try:
-
-        alternative_result = find_alternatives(
-            product,
-            specs
-        )
-
-        alternatives = alternative_result.get(
-            "alternatives",
-            []
-        )
-
-    except Exception as error:
-
-        print("=" * 80)
-
-        print(
-            "ALTERNATIVE AGENT ERROR:",
-            error
-        )
-
-        print("=" * 80)
-
-        alternatives = []
 
     # ========================================================
     # 6. GEMINI UNAVAILABLE

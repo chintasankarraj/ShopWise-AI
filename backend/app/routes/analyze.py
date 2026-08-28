@@ -176,18 +176,14 @@ def _analyze(request: ProductRequest):
     print("=" * 80)
 
     # ==================================================
-    # 5. Generate AI insights
-    # ==================================================
-
-    insights = generate_insights(
-        product,
-        specs,
-        analysis,
-        category
-    )
-
-    # ==================================================
-    # 5.1 Find better alternatives
+    # 5. Find better alternatives
+    #
+    # Computed exactly once per request, here, and passed
+    # into generate_insights() below rather than letting it
+    # compute its own -- alternatives discovery involves a
+    # Gemini call plus a multi-query web-search fallback, so
+    # a second independent call would double both external
+    # API pressure and latency for no benefit.
     # ==================================================
 
     alternative_report = find_alternatives(
@@ -201,7 +197,19 @@ def _analyze(request: ProductRequest):
     )
 
     # ==================================================
-    # 6. Final unified response
+    # 6. Generate AI insights
+    # ==================================================
+
+    insights = generate_insights(
+        product,
+        specs,
+        analysis,
+        category,
+        alternatives
+    )
+
+    # ==================================================
+    # 7. Final unified response
     # ==================================================
 
     return {
