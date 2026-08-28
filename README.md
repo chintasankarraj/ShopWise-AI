@@ -1,6 +1,13 @@
 # ShopWise AI
 
+![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?logo=fastapi&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)
+
 AI-assisted buying-decision tool for Amazon smartphones and laptops — paste a product URL and get a rule-based score, an AI-generated summary, real customer-review analysis, and verified alternatives, all in one place.
+
+![ShopWise AI — laptop analysis result: AI recommendation score, verdict, and reasoning](docs/screenshots/03-laptop-results-desktop.png)
 
 ## Demo
 
@@ -8,7 +15,22 @@ No live deployment is currently linked in this repository. `render.yaml` defines
 
 ## Screenshots
 
-_No screenshots currently exist in this repository — `frontend/public/` only contains the default Next.js starter icons. Add real screenshots of the landing page, the loading state, and a full analysis result here (e.g. under `docs/screenshots/`) before publishing this README publicly._
+All captured from the actual running V1 application against real Amazon.in listings — nothing mocked or manually recreated.
+
+**Landing page (desktop, 1440px)**
+![Landing page](docs/screenshots/01-landing-desktop.png)
+
+**Smartphone analysis result (desktop)**
+![Smartphone analysis result](docs/screenshots/02-smartphone-results-desktop.png)
+
+**Laptop score & AI recommendation (desktop)**
+![Laptop AI recommendation](docs/screenshots/03-laptop-results-desktop.png)
+
+**Smartphone results (mobile, 390×844)**
+![Smartphone results on mobile](docs/screenshots/04-smartphone-results-mobile.png)
+
+**Laptop specifications (mobile, 390×844)**
+![Laptop specifications on mobile](docs/screenshots/05-laptop-results-mobile.png)
 
 ---
 
@@ -195,3 +217,7 @@ _Not implemented — listed here only as potential future work, not current func
 - Re-verifying and fixing the DuckDuckGo alternatives fallback once reachable
 - Laptop-specific RAG knowledge base content
 - A deployed live demo
+
+## License
+
+MIT — see [LICENSE](LICENSE).
