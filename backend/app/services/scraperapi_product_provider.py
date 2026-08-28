@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 from app.schemas.product import Product, Specification
 from app.services.product_extractor import extract_asin
+from app.services.review_parser import normalize_review_list
 from app.services.title_spec_parser import extract_title_specifications
 
 
@@ -547,6 +548,33 @@ def _extract_reviews(data):
         return None
 
 
+def _extract_review_texts(data):
+    """
+    ScraperAPI's structured Amazon product endpoint DOES include
+    real customer review text -- confirmed via live inspection
+    this round (2 real products, a phone and a laptop) -- under a
+    top-level "reviews" list, each item carrying a "review" text
+    field alongside "stars"/"title"/"date" and reviewer-identity
+    fields ("username", "user_url") this function deliberately
+    never reads. Routes through the exact same normalization used
+    for the direct-HTML extraction path so both sources produce a
+    review_texts list that behaves identically downstream.
+    """
+
+    raw_reviews = data.get("reviews")
+
+    if not isinstance(raw_reviews, list):
+        return []
+
+    raw_texts = [
+        item.get("review")
+        for item in raw_reviews
+        if isinstance(item, dict) and item.get("review")
+    ]
+
+    return normalize_review_list(raw_texts)
+
+
 def _extract_image(data):
 
     images = data.get("images")
@@ -685,7 +713,7 @@ def fetch_product_from_scraperapi(url: str, timeout: int = 60) -> Product:
         image=_extract_image(data),
         availability=_extract_availability(data),
         specifications=_build_specifications(data, title=title),
-        review_texts=[],
+        review_texts=_extract_review_texts(data),
     )
 
     print("SCRAPERAPI FALLBACK: usable product data received.")

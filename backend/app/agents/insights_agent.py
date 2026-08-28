@@ -45,14 +45,15 @@ if api_key:
 # ============================================================
 # REVIEW TEXT PREPARATION
 #
-# product.review_texts holds the actual scraped review bodies
-# (direct Amazon path only -- the ScraperAPI fallback always
-# sets it to [] since ScraperAPI's structured Amazon endpoint
-# doesn't return review bodies). Capped independently here
-# (not just relying on product_extractor.py's own cap) so a
-# future provider/extractor change can't silently blow up
-# prompt size, and each review is truncated so a handful of
-# very long reviews can't do the same.
+# product.review_texts holds the actual scraped review bodies,
+# from either extraction path (direct Amazon HTML or the
+# ScraperAPI fallback) -- both now supply real review text when
+# Amazon/ScraperAPI actually has it for the product, and an
+# empty list when they don't. Capped independently here (not
+# just relying on the extractors' own caps) so a future
+# provider/extractor change can't silently blow up prompt size,
+# and each review is truncated so a handful of very long reviews
+# can't do the same.
 # ============================================================
 
 _MAX_REVIEWS_FOR_PROMPT = 10
