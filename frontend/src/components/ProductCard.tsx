@@ -141,7 +141,7 @@ export default function ProductCard({ product }: Props) {
             {/* Brand */}
 
             <span className="inline-flex items-center rounded-full border border-blue-500/20 bg-blue-500/10 px-5 py-2 text-sm font-semibold text-blue-400">
-              {product.brand || "Unknown Brand"}
+              {product.brand || "Not specified"}
             </span>
 
             {/* Clean Product Title */}
@@ -168,7 +168,7 @@ export default function ProductCard({ product }: Props) {
               />
 
               <span className="text-sm text-gray-400">
-                {product.availability || "Availability Unknown"}
+                {product.availability || "Not specified"}
               </span>
 
             </div>

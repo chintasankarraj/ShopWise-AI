@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Sparkles } from "lucide-react";
+import { Search, Sparkles, Smartphone, Laptop } from "lucide-react";
 
 interface Props {
   onAnalyze: (url: string) => void;
@@ -12,8 +12,14 @@ export default function SearchBar({ onAnalyze, loading }: Props) {
   const [url, setUrl] = useState("");
 
   const handleSubmit = () => {
-    if (!url.trim()) return;
+    if (!url.trim() || loading) return;
     onAnalyze(url);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleSubmit();
+    }
   };
 
   return (
@@ -66,8 +72,9 @@ export default function SearchBar({ onAnalyze, loading }: Props) {
         <input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="Paste Amazon product URL..."
-          className="flex-1 bg-transparent px-5 py-4 text-lg outline-none placeholder:text-gray-500"
+          className="min-w-0 flex-1 bg-transparent px-5 py-4 text-lg outline-none placeholder:text-gray-500"
         />
 
         <button
@@ -77,6 +84,21 @@ export default function SearchBar({ onAnalyze, loading }: Props) {
         >
           {loading ? "Analyzing..." : "Analyze"}
         </button>
+
+      </div>
+
+      <div className="mt-5 flex justify-center">
+
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/60 px-4 py-1.5 text-xs text-gray-500">
+
+          <Smartphone size={13} />
+          <Laptop size={13} />
+
+          <span>
+            ShopWise V1 currently supports Smartphones &amp; Laptops on Amazon
+          </span>
+
+        </div>
 
       </div>
 

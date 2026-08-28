@@ -3,18 +3,7 @@ import {
   ShieldCheck,
   CircleX,
   Sparkles,
-  Cpu,
-  Battery,
-  Monitor,
-  Camera,
-  IndianRupee,
-  Shield,
 } from "lucide-react";
-
-interface CategoryScore {
-  score: number;
-  reason?: string;
-}
 
 interface Props {
   report: {
@@ -23,20 +12,20 @@ interface Props {
     summary: string;
     pros: string[];
     cons: string[];
-
-    category_scores?: {
-      performance?: CategoryScore;
-      battery?: CategoryScore;
-      display?: CategoryScore;
-      camera?: CategoryScore;
-      value?: CategoryScore;
-      durability?: CategoryScore;
-    };
   };
+  /*
+   * The score-breakdown reasons already shown in
+   * RecommendationCard's "Why?" section. When the backend's
+   * AI report falls back to reusing that same list verbatim
+   * for "pros" (it does when live AI insights are unavailable),
+   * we avoid showing the identical text a second time here.
+   */
+  reasons?: string[];
 }
 
 export default function AIReportCard({
   report,
+  reasons = [],
 }: Props) {
 
   const recommendation =
@@ -49,73 +38,16 @@ export default function AIReportCard({
       ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
       : "bg-red-500/20 text-red-400 border-red-500/30";
 
-  /*
-   * Category score configuration
-   */
+  const alreadyShownReasons = new Set(
+    reasons.map((reason) => reason.trim().toLowerCase())
+  );
 
-  const categoryScores = [
-    {
-      key: "performance",
-      label: "Performance",
-      icon: Cpu,
-      color: "text-blue-400",
-      bg: "bg-blue-500/10",
-      border: "border-blue-500/20",
-      data: report.category_scores?.performance,
-    },
-    {
-      key: "battery",
-      label: "Battery",
-      icon: Battery,
-      color: "text-green-400",
-      bg: "bg-green-500/10",
-      border: "border-green-500/20",
-      data: report.category_scores?.battery,
-    },
-    {
-      key: "display",
-      label: "Display",
-      icon: Monitor,
-      color: "text-purple-400",
-      bg: "bg-purple-500/10",
-      border: "border-purple-500/20",
-      data: report.category_scores?.display,
-    },
-    {
-      key: "camera",
-      label: "Camera",
-      icon: Camera,
-      color: "text-pink-400",
-      bg: "bg-pink-500/10",
-      border: "border-pink-500/20",
-      data: report.category_scores?.camera,
-    },
-    {
-      key: "value",
-      label: "Value",
-      icon: IndianRupee,
-      color: "text-yellow-400",
-      bg: "bg-yellow-500/10",
-      border: "border-yellow-500/20",
-      data: report.category_scores?.value,
-    },
-    {
-      key: "durability",
-      label: "Durability",
-      icon: Shield,
-      color: "text-cyan-400",
-      bg: "bg-cyan-500/10",
-      border: "border-cyan-500/20",
-      data: report.category_scores?.durability,
-    },
-  ];
+  const newPros = report.pros.filter(
+    (pro) => !alreadyShownReasons.has(pro.trim().toLowerCase())
+  );
 
-  const hasCategoryScores =
-    categoryScores.some(
-      (category) =>
-        category.data &&
-        typeof category.data.score === "number"
-    );
+  const prosFullyDuplicateReasons =
+    report.pros.length > 0 && newPros.length === 0;
 
   return (
     <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-8 shadow-2xl backdrop-blur-xl">
@@ -162,124 +94,6 @@ export default function AIReportCard({
         </span>
 
       </div>
-
-
-      {/* =====================================================
-          CATEGORY SCORE BREAKDOWN
-      ====================================================== */}
-
-      {hasCategoryScores && (
-
-        <div className="mt-10">
-
-          <div className="flex items-center gap-3">
-
-            <Sparkles
-              size={22}
-              className="text-purple-400"
-            />
-
-            <div>
-
-              <p className="text-sm uppercase tracking-[0.2em] text-gray-500">
-                AI Score Breakdown
-              </p>
-
-              <h3 className="mt-1 text-2xl font-bold">
-                How the score is built
-              </h3>
-
-            </div>
-
-          </div>
-
-
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-
-            {categoryScores.map((category) => {
-
-              const Icon = category.icon;
-
-              const score =
-                category.data?.score;
-
-              if (
-                typeof score !== "number"
-              ) {
-                return null;
-              }
-
-              return (
-
-                <div
-                  key={category.key}
-                  className={`rounded-3xl border ${category.border} bg-slate-800/60 p-5 transition-all duration-300 hover:-translate-y-1`}
-                >
-
-                  <div className="flex items-center justify-between">
-
-                    <div className="flex items-center gap-3">
-
-                      <div
-                        className={`flex h-11 w-11 items-center justify-center rounded-2xl ${category.bg}`}
-                      >
-                        <Icon
-                          size={21}
-                          className={category.color}
-                        />
-                      </div>
-
-                      <span className="font-semibold">
-                        {category.label}
-                      </span>
-
-                    </div>
-
-                    <span
-                      className={`text-xl font-bold ${category.color}`}
-                    >
-                      {score}
-                    </span>
-
-                  </div>
-
-
-                  {/* Progress Bar */}
-
-                  <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-700">
-
-                    <div
-                      className="h-full rounded-full bg-current transition-all duration-700"
-                      style={{
-                        width: `${Math.min(
-                          Math.max(score, 0),
-                          100
-                        )}%`,
-                      }}
-                    />
-
-                  </div>
-
-
-                  {category.data?.reason && (
-
-                    <p className="mt-4 text-sm leading-6 text-gray-400">
-                      {category.data.reason}
-                    </p>
-
-                  )}
-
-                </div>
-
-              );
-
-            })}
-
-          </div>
-
-        </div>
-
-      )}
 
 
       {/* =====================================================
@@ -371,9 +185,9 @@ export default function AIReportCard({
 
           <div className="mt-6 space-y-3">
 
-            {report.pros.length > 0 ? (
+            {newPros.length > 0 ? (
 
-              report.pros.map(
+              newPros.map(
                 (pro, index) => (
 
                   <div
@@ -385,6 +199,13 @@ export default function AIReportCard({
 
                 )
               )
+
+            ) : prosFullyDuplicateReasons ? (
+
+              <p className="text-gray-500">
+                Already covered in &quot;Why?&quot; above — the AI&apos;s
+                strengths match the score reasons.
+              </p>
 
             ) : (
 

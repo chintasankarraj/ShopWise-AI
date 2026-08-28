@@ -49,7 +49,11 @@ function normalizeName(name: string): string {
 
   if (
     value === "storage" ||
-    value.includes("rom")
+    value === "storage capacity" ||
+    value.includes("rom") ||
+    value.includes("internal storage") ||
+    (value.includes("hard drive") && value.includes("size")) ||
+    (value.includes("hard disk") && value.includes("size"))
   ) {
     return "Storage";
   }
@@ -63,10 +67,47 @@ function normalizeName(name: string): string {
   }
 
   if (
+    value === "graphics co processor" ||
+    value === "video processor" ||
+    value === "graphics coprocessor" ||
+    value === "graphics processor" ||
+    value === "gpu"
+  ) {
+    return "Graphics";
+  }
+
+  if (
+    value === "graphics card description" ||
+    value === "graphics description" ||
+    value === "graphics chipset" ||
+    value === "graphics chipset brand"
+  ) {
+    return "Graphics Type";
+  }
+
+  if (
+    value === "graphics ram size" ||
+    value === "graphics memory size" ||
+    value === "video memory"
+  ) {
+    return "Graphics Memory";
+  }
+
+  if (
     value === "battery" ||
-    value.includes("battery capacity")
+    value.includes("battery capacity") ||
+    value.includes("battery energy content") ||
+    (value.includes("battery") && value.includes("energy"))
   ) {
     return "Battery";
+  }
+
+  if (
+    value === "battery cell type" ||
+    value === "battery chemistry" ||
+    value === "battery type"
+  ) {
+    return "Battery Type";
   }
 
   if (
@@ -81,14 +122,6 @@ function normalizeName(name: string): string {
     value.includes("refresh")
   ) {
     return "Refresh Rate";
-  }
-
-  if (
-    value === "display" ||
-    value === "display size" ||
-    value === "screen size"
-  ) {
-    return "Display";
   }
 
   if (
@@ -204,6 +237,17 @@ function normalizeSpecifications(
     }
 
     /*
+     * "Graphics Ram Type" (e.g. "VRAM") adds no
+     * information beyond what "Graphics Memory"
+     * already conveys — drop the duplicate.
+     */
+    if (
+      originalName === "graphics ram type"
+    ) {
+      continue;
+    }
+
+    /*
      * We don't need the generic Amazon
      * "Water Resistant" field if IP rating exists.
      */
@@ -225,42 +269,47 @@ function normalizeSpecifications(
     --------------------------------------------------------- */
 
     /*
-     * IMPORTANT:
+     * "Display" / "Display Technology" hold the panel
+     * technology (e.g. "LED", "IPS") and can arrive in
+     * either order. Merge whichever is seen into one
+     * "Display" value instead of letting a later field
+     * silently overwrite — or an earlier field silently
+     * block — the other.
      *
-     * Always prefer "Display Size"
-     * over "Screen Size".
-     *
-     * This fixes:
-     *
-     * Screen Size → 6.99 Inches
-     *
-     * being displayed instead of:
-     *
-     * Display Size → 6.99 inch AMOLED
+     * "Screen Size" / "Display Size" hold the physical
+     * size and are kept as their own field so they never
+     * collide with, or shadow, the panel type.
      */
 
     if (
-      originalName === "display size"
+      originalName === "display" ||
+      originalName === "display technology"
     ) {
+      const existingDisplay = values.get("Display");
+
       values.set(
         "Display",
-        spec.value
+        existingDisplay
+          ? `${existingDisplay} ${spec.value}`
+          : spec.value
       );
 
       continue;
     }
 
     if (
+      originalName === "display size" ||
       originalName === "screen size"
     ) {
 
       /*
-       * Only use Screen Size if Display Size
-       * hasn't already been found.
+       * Only use the first size value seen —
+       * Display Size and Screen Size describe
+       * the same thing.
        */
-      if (!values.has("Display")) {
+      if (!values.has("Screen Size")) {
         values.set(
-          "Display",
+          "Screen Size",
           spec.value
         );
       }
@@ -362,9 +411,14 @@ function normalizeSpecifications(
     "Processor",
     "RAM",
     "Storage",
+    "Graphics",
+    "Graphics Type",
+    "Graphics Memory",
     "Display",
+    "Screen Size",
     "Refresh Rate",
     "Battery",
+    "Battery Type",
     "Charging",
     "Rear Camera",
     "Network",
@@ -437,6 +491,16 @@ function getSpecificationIcon(
       Icon: Cpu,
       color: "text-blue-400",
       bg: "bg-blue-500/10",
+    };
+  }
+
+  if (
+    value.includes("graphics")
+  ) {
+    return {
+      Icon: Cpu,
+      color: "text-red-400",
+      bg: "bg-red-500/10",
     };
   }
 

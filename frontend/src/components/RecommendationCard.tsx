@@ -101,7 +101,7 @@ export default function RecommendationCard({ analysis }: Props) {
       <div className="mt-10 rounded-3xl border border-slate-700 bg-slate-800/60 p-6">
 
         <h3 className="text-xl font-bold">
-          Executive Summary
+          Score Summary
         </h3>
 
         <p className="mt-5 leading-8 text-gray-300">

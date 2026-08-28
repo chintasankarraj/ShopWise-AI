@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 
 import SearchBar from "./SearchBar";
 import LoadingSpinner from "./LoadingSpinner";
 import ErrorCard from "./ErrorCard";
+import ResultsNav from "./ResultsNav";
 import QuickVerdict from "./QuickVerdict";
 import ProductCard from "./ProductCard";
 import RecommendationCard from "./RecommendationCard";
@@ -44,9 +46,14 @@ export default function Dashboard() {
     } catch (err) {
       console.error(err);
 
-      setError("Failed to analyze the product. Please try again.");
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "Failed to analyze the product. Please try again.";
 
-      toast.error("Analysis failed.");
+      setError(message);
+
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -59,63 +66,111 @@ export default function Dashboard() {
         loading={loading}
       />
 
-      {loading && (
-        <div className="mx-auto mt-16 flex max-w-7xl justify-center px-6">
-          <LoadingSpinner />
-        </div>
-      )}
+      {/*
+       * Rendered outside AnimatePresence/motion so it never sits
+       * inside a transformed ancestor — position: sticky silently
+       * stops working when an ancestor has a transform applied.
+       */}
+      {!loading && result && <ResultsNav />}
 
-      {error && (
-        <div className="mx-auto mt-10 max-w-7xl px-6">
-          <ErrorCard message={error} />
-        </div>
-      )}
+      <AnimatePresence mode="wait">
 
-      {result && (
-        <main className="mx-auto mt-10 max-w-7xl space-y-8 px-6 pb-24">
+        {loading && (
+          <motion.div
+            key="loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="mx-auto mt-16 flex max-w-7xl justify-center px-6"
+          >
+            <LoadingSpinner />
+          </motion.div>
+        )}
 
-          <QuickVerdict
-            analysis={result.analysis}
-          />
+        {!loading && error && (
+          <motion.div
+            key="error"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="mx-auto mt-10 max-w-7xl px-6"
+          >
+            <ErrorCard message={error} />
+          </motion.div>
+        )}
 
-          <ProductCard
-            product={result.product}
-          />
+        {!loading && result && (
+          <motion.main
+            key="result"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
+            className="mx-auto mt-10 max-w-7xl space-y-8 px-6 pb-24"
+          >
 
-          <section className="grid items-start gap-8 lg:grid-cols-2">
+            {/* 1. Product overview */}
+            <div id="section-overview" className="scroll-mt-20">
+              <ProductCard
+                product={result.product}
+              />
+            </div>
 
-            <RecommendationCard
-              analysis={result.analysis}
-            />
+            {/* 2. Score / verdict */}
+            <div id="section-score" className="scroll-mt-20">
+              <QuickVerdict
+                analysis={result.analysis}
+              />
+            </div>
 
-            <SpecsCard
-              specifications={result.product.specifications ?? []}
-            />
+            {/* 3. Key specifications */}
+            <div id="section-specs" className="scroll-mt-20">
+              <SpecsCard
+                specifications={result.product.specifications ?? []}
+              />
+            </div>
 
-          </section>
+            {/* 4. Score breakdown / reasons */}
+            <div id="section-breakdown" className="scroll-mt-20">
+              <RecommendationCard
+                analysis={result.analysis}
+              />
+            </div>
 
-          <section className="grid items-start gap-8 lg:grid-cols-2">
+            {/* 5. Reviews + price */}
+            <section id="section-reviews" className="scroll-mt-20 grid items-start gap-8 lg:grid-cols-2">
 
-            <ReviewCard
-              report={result.review_report}
-            />
+              <ReviewCard
+                report={result.review_report}
+              />
 
-            <PriceCard
-              report={result.price_report}
-            />
+              <PriceCard
+                report={result.price_report}
+              />
 
-          </section>
+            </section>
 
-          <AIReportCard
-            report={result.ai_report}
-          />
+            {/* 6. AI insights */}
+            <div id="section-ai" className="scroll-mt-20">
+              <AIReportCard
+                report={result.ai_report}
+                reasons={result.analysis.reasons}
+              />
+            </div>
 
-          <AlternativesCard
-            alternatives={result.alternatives}
-          />
+            {/* 7. Alternatives */}
+            <div id="section-alternatives" className="scroll-mt-20">
+              <AlternativesCard
+                alternatives={result.alternatives}
+              />
+            </div>
 
-        </main>
-      )}
+          </motion.main>
+        )}
+
+      </AnimatePresence>
     </>
   );
 }
