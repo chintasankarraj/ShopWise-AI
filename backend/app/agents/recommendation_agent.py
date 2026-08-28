@@ -1,5 +1,7 @@
 import re
 
+from app.services.title_spec_parser import extract_title_specifications
+
 
 # Matches bare Apple A-series chip names (A15-A19, optionally
 # "Pro"/"Bionic"), with or without a leading "apple " brand
@@ -191,6 +193,108 @@ def _find_spec(specs, keywords, exclude=None):
                 return value
 
     return None
+
+
+# Amazon's own structured attribute fields sometimes literally
+# hold one of these placeholder strings instead of a real
+# processor name -- confirmed on real, current listings (a
+# brand-new Samsung Galaxy S26 shows "Others", a MacBook Air M3
+# shows "Unknown") rather than the field being missing outright.
+# Treated as equivalent to "no structured value" so the title
+# fallback below gets a chance instead of scoring a placeholder
+# as if it meant something.
+_PROCESSOR_PLACEHOLDER_VALUES = {
+    "unknown",
+    "others",
+    "other",
+    "n/a",
+    "na",
+    "not applicable",
+    "not available",
+    "none",
+    "-",
+    "--",
+    "tbd",
+}
+
+
+def _is_placeholder_processor_value(value):
+    """
+    True when a structured processor-field value is empty or one
+    of the known non-informative placeholders above -- never true
+    for a genuine (even unrecognized) processor name, which is
+    left exactly as-is.
+    """
+
+    if not value:
+        return True
+
+    normalized = str(value).strip().lower()
+
+    return (
+        not normalized
+        or normalized in _PROCESSOR_PLACEHOLDER_VALUES
+    )
+
+
+def _title_processor_fallback(title):
+    """
+    Recover a processor name from the product title using the
+    same evidence-based regex patterns already used at extraction
+    time (title_spec_parser.extract_title_specifications) --
+    never a guess derived from the brand or category alone.
+    Returns None when the title contains no recognizable
+    processor pattern.
+    """
+
+    if not title:
+        return None
+
+    for spec in extract_title_specifications(title):
+
+        if spec.get("name", "").strip().lower() == "processor":
+
+            value = str(
+                spec.get("value", "")
+            ).strip()
+
+            if value:
+                return value.lower()
+
+    return None
+
+
+def _resolve_processor(specs, title, keywords=None, exclude=None):
+    """
+    Determine the processor string to score.
+
+    Prefers the structured specification field exactly as before
+    -- unchanged for the overwhelming majority of real listings,
+    which already state a genuine processor name there. Falls
+    back to a title-based extraction only when the structured
+    field is absent or a known placeholder (see
+    _PROCESSOR_PLACEHOLDER_VALUES), and only when the title
+    itself contains actual, recognizable processor evidence.
+    Returns None (scored as "no processor evidence") when neither
+    source has one -- never invents a tier from the brand alone.
+    """
+
+    if keywords is None:
+        keywords = ["processor", "cpu", "chip"]
+
+    if exclude is None:
+        exclude = ["video processor", "graphics"]
+
+    structured = _find_spec(
+        specs,
+        keywords,
+        exclude=exclude,
+    )
+
+    if not _is_placeholder_processor_value(structured):
+        return structured
+
+    return _title_processor_fallback(title)
 
 
 def _find_all_specs(specs, keywords):
@@ -796,17 +900,14 @@ def _score_smartphone(specs, title=None):
     # PERFORMANCE — 25 POINTS
     # ========================================================
 
-    processor = _find_spec(
+    processor = _resolve_processor(
         specs,
-        [
+        title,
+        keywords=[
             "processor",
             "cpu",
             "chipset",
             "chip",
-        ],
-        exclude=[
-            "video processor",
-            "graphics",
         ],
     )
 
@@ -1891,17 +1992,9 @@ def _score_laptop(specs, title=None):
     # PROCESSOR — 30 POINTS
     # ========================================================
 
-    cpu = _find_spec(
+    cpu = _resolve_processor(
         specs,
-        [
-            "processor",
-            "cpu",
-            "chip",
-        ],
-        exclude=[
-            "video processor",
-            "graphics",
-        ],
+        title,
     )
 
     if cpu:

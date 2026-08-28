@@ -140,38 +140,70 @@ def extract_title_specifications(title: str) -> list[dict]:
     # Processor / Chipset
     # --------------------------------------------------
 
-    processor_patterns = [
-        r"(Snapdragon\s+[A-Za-z0-9\s]+?)(?=\s*\||\s*\d+MP|\s*$)",
-        r"(Dimensity\s+[A-Za-z0-9\s]+?)(?=\s*\||\s*\d+MP|\s*$)",
-        r"(MediaTek\s+[A-Za-z0-9\s]+?)(?=\s*\||\s*\d+MP|\s*$)",
-        r"(Apple\s+A\d+\s*(?:Bionic|Pro)?)",
-        r"(Exynos\s+[A-Za-z0-9\s]+?)(?=\s*\||\s*\d+MP|\s*$)",
-        # Laptop chips (Intel/AMD). Appended after the phone
-        # chipset patterns above rather than interleaved, since a
-        # title never matches both groups and this keeps the
-        # existing phone-pattern priority/order untouched.
-        r"((?:\d+(?:st|nd|rd|th)\s+Gen\s+)?Intel\s+Core\s+i[3579](?:-[A-Za-z0-9]+)?)",
-        r"(Intel\s+(?:Celeron|Pentium)(?:\s+[A-Za-z0-9]+)?)",
-        r"(AMD\s+Ryzen\s+[3579](?:\s+[A-Za-z0-9]+)?)",
-        r"(Ryzen\s+[3579](?:\s+[A-Za-z0-9]+)?)",
-    ]
+    # Apple Silicon (M-series) laptop chips -- checked first and
+    # separately from the generic patterns below because the
+    # emitted value must include the literal word "Apple" (the
+    # scoring tier lookup in recommendation_agent.py requires it,
+    # to stay disambiguated from Intel's old "Core M3/M5/M7"
+    # Y-series branding). Requires the literal word "chip"
+    # immediately after the model -- how Apple always phrases it
+    # on Amazon ("...with M3 chip: ...") -- which alone already
+    # rules out Intel's naming (never phrased that way), so no
+    # separate "Apple" co-occurrence check in the source text is
+    # needed before emitting the qualified value.
+    apple_silicon = re.search(
+        r"\bM([1-4])\s*(Pro|Max|Ultra)?\s*chip\b",
+        text,
+        re.IGNORECASE,
+    )
 
-    for pattern in processor_patterns:
+    if apple_silicon:
 
-        match = re.search(
-            pattern,
-            text,
-            re.IGNORECASE,
+        variant = (
+            f" {apple_silicon.group(2)}"
+            if apple_silicon.group(2)
+            else ""
         )
 
-        if match:
+        add_spec(
+            "Processor",
+            f"Apple M{apple_silicon.group(1)}{variant} chip",
+        )
 
-            add_spec(
-                "Processor",
-                match.group(1),
+    else:
+
+        processor_patterns = [
+            r"(Snapdragon\s+[A-Za-z0-9\s]+?)(?=\s*\||\s*\d+MP|\s*$)",
+            r"(Dimensity\s+[A-Za-z0-9\s]+?)(?=\s*\||\s*\d+MP|\s*$)",
+            r"(MediaTek\s+[A-Za-z0-9\s]+?)(?=\s*\||\s*\d+MP|\s*$)",
+            r"(Apple\s+A\d+\s*(?:Bionic|Pro)?)",
+            r"(Exynos\s+[A-Za-z0-9\s]+?)(?=\s*\||\s*\d+MP|\s*$)",
+            # Laptop chips (Intel/AMD). Appended after the phone
+            # chipset patterns above rather than interleaved, since a
+            # title never matches both groups and this keeps the
+            # existing phone-pattern priority/order untouched.
+            r"((?:\d+(?:st|nd|rd|th)\s+Gen\s+)?Intel\s+Core\s+i[3579](?:-[A-Za-z0-9]+)?)",
+            r"(Intel\s+(?:Celeron|Pentium)(?:\s+[A-Za-z0-9]+)?)",
+            r"(AMD\s+Ryzen\s+[3579](?:\s+[A-Za-z0-9]+)?)",
+            r"(Ryzen\s+[3579](?:\s+[A-Za-z0-9]+)?)",
+        ]
+
+        for pattern in processor_patterns:
+
+            match = re.search(
+                pattern,
+                text,
+                re.IGNORECASE,
             )
 
-            break
+            if match:
+
+                add_spec(
+                    "Processor",
+                    match.group(1),
+                )
+
+                break
 
     # --------------------------------------------------
     # Camera
