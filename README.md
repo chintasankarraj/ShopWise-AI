@@ -11,7 +11,9 @@ AI-assisted buying-decision tool for Amazon smartphones and laptops — paste a 
 
 ## Demo
 
-No live deployment is currently linked in this repository. `render.yaml` defines a Render Blueprint for the backend, and the frontend is intended for Vercel, but no deployed URL is committed anywhere in the codebase. Add one here once a live instance exists.
+🚀 **Live Demo:** https://shop-wise-ai-cyan.vercel.app/
+
+ShopWise V1 is publicly deployed and currently supports Smartphones & Laptops on Amazon.
 
 ## Screenshots
 
@@ -134,7 +136,7 @@ ShopWise-AI/
 │   ├── .env.example
 │   └── src/
 │       ├── app/                   # layout, root page, global styles
-│       ├── components/            # Dashboard + 13 result-section cards
+│       ├── components/            # Dashboard + the result-section components
 │       ├── services/api.ts        # backend API client
 │       └── types/product.ts
 └── backend/                       # FastAPI app
@@ -183,7 +185,7 @@ Copy each `.env.example` to `.env` and fill in real values — **never commit th
 | `SCRAPERAPI_KEY` | ScraperAPI key — fallback Amazon product provider when direct scraping is blocked |
 | `FRONTEND_URL` | Allowed CORS origin(s) for the deployed frontend, comma-separated. Defaults to `http://localhost:3000` |
 
-**`frontend/.env` **(from `frontend/.env.example`):
+**`frontend/.env`** (from `frontend/.env.example`):
 
 | Variable | Purpose |
 |---|---|
@@ -216,7 +218,6 @@ _Not implemented — listed here only as potential future work, not current func
 - Real historical price tracking
 - Re-verifying and fixing the DuckDuckGo alternatives fallback once reachable
 - Laptop-specific RAG knowledge base content
-- A deployed live demo
 
 ## License
 
