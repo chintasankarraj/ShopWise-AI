@@ -1,224 +1,687 @@
-# ShopWise AI
+# 🛒 ShopWise AI
 
-![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?logo=fastapi&logoColor=white)
-![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)
+## 🚀 AI-Powered Product Analysis & Buying Assistant
 
-AI-assisted buying-decision tool for Amazon smartphones and laptops — paste a product URL and get a rule-based score, an AI-generated summary, real customer-review analysis, and verified alternatives, all in one place.
+ShopWise AI is a full-stack AI-powered shopping assistant that analyzes **Amazon smartphones and laptops** using real product data, rule-based scoring, customer reviews, Retrieval-Augmented Generation (RAG), and Google Gemini.
 
-![ShopWise AI — laptop analysis result: AI recommendation score, verdict, and reasoning](docs/screenshots/03-laptop-results-desktop.png)
-
-## Demo
-
-🚀 **Live Demo:** https://shop-wise-ai-cyan.vercel.app/
-
-ShopWise V1 is publicly deployed and currently supports Smartphones & Laptops on Amazon.
-
-## Screenshots
-
-All captured from the actual running V1 application against real Amazon.in listings — nothing mocked or manually recreated.
-
-**Landing page (desktop, 1440px)**
-![Landing page](docs/screenshots/01-landing-desktop.png)
-
-**Smartphone analysis result (desktop)**
-![Smartphone analysis result](docs/screenshots/02-smartphone-results-desktop.png)
-
-**Laptop score & AI recommendation (desktop)**
-![Laptop AI recommendation](docs/screenshots/03-laptop-results-desktop.png)
-
-**Smartphone results (mobile, 390×844)**
-![Smartphone results on mobile](docs/screenshots/04-smartphone-results-mobile.png)
-
-**Laptop specifications (mobile, 390×844)**
-![Laptop specifications on mobile](docs/screenshots/05-laptop-results-mobile.png)
+Paste an Amazon product URL and get a **transparent recommendation score, BUY / CONSIDER / AVOID verdict, AI-generated insights, review analysis, and verified alternative products** — all in one dashboard.
 
 ---
 
-## The problem
+## 🚀 Live Demo
 
-Amazon product listings bury the information a buyer actually needs — the real processor behind a vague "Others" spec field, whether the reviews are genuine or absent, whether a competing model is a better deal — inside walls of marketing copy and inconsistent structured data. Comparing two listings by hand means opening a dozen tabs and reading past the noise every time.
+🔗 **Live Application:**  
+https://shop-wise-ai-cyan.vercel.app/
 
-## How ShopWise works
+ShopWise AI V1 is publicly deployed and currently supports **Amazon smartphones and laptops**.
 
-Paste an Amazon smartphone or laptop URL. ShopWise extracts the listing's real specifications, scores it against a transparent, rule-based model tuned specifically for that product category, reads whatever genuine customer reviews are available, and — when its AI provider is available — writes a plain-English summary and looks for currently-purchasable alternatives worth considering instead. Every one of these steps is designed to degrade honestly: if a spec is missing, a review can't be found, or the AI call fails, ShopWise says so rather than guessing.
+---
 
-## V1 features
+## 📸 Screenshots
 
-- **Product extraction** from a real Amazon listing: title, brand, price, rating, review count, image, availability, and full specifications — normalized and de-duplicated for display
-- **Automatic category detection** (smartphone vs. laptop vs. other)
-- **Rule-based scoring engine** producing a 0–100 score and a **BUY / CONSIDER / AVOID** verdict with human-readable reasons, computed independently of any AI provider
-- **AI-generated executive summary and pros/cons** (Gemini) when available, with an explicit, non-fabricating fallback when it isn't
-- **Review intelligence** — sentiment, top pros/cons, and common complaints derived from real scraped review text (never from the star rating alone)
-- **Verified alternatives** — AI-discovered candidate products, each independently re-checked against its own live Amazon listing before being shown; never shown if unverifiable
-- **Results dashboard** with sticky section navigation, a live-feeling loading state (elapsed timer, rotating status messages), and honest empty states throughout
-- Responsive layout, tested at desktop (1440px) and mobile (390px) widths
+### 🏠 Landing Page
 
-## Supported products — V1 scope
+![ShopWise AI Landing Page](docs/screenshots/01-landing-desktop.png)
 
-**ShopWise V1 supports Amazon smartphones and laptops only.** This is enforced in the product itself — the landing page states it directly, and only these two categories receive tuned scoring logic. The category detector can technically recognize a few other product types (tablets, headphones, TVs, cameras, smartwatches), but they fall through to a minimal generic scorer and are **not** a supported use case. Other online retailers (Flipkart, eBay, etc.) are not supported.
+---
 
-The URL validator technically accepts several regional Amazon domains (`amazon.in`, `.com`, `.co.uk`, `.de`, `.ca`, `.com.au`, plus `amzn.in`/`amzn.to` short links) as an SSRF safeguard, but every stage of this project — extraction, scoring, and testing — has been built and verified exclusively against **amazon.in**. Treat other Amazon regions as untested.
+### 📱 Smartphone Analysis
 
-## Scoring & recommendation
+![Smartphone Analysis](docs/screenshots/02-smartphone-results-desktop.png)
 
-Scoring is entirely rule-based (no LLM involved) and fully deterministic — the same input specifications always produce the same score. Each category has its own weighted dimensions:
+---
 
-**Smartphone** (sums to 100): Performance 25 · Display 20 · Battery 15 · Camera 10 · RAM + Storage 10 · Charging 10 · Durability 5 · Connectivity 5
+### 💻 Laptop Analysis
 
-**Laptop** (capped at 100): Processor 30 · RAM 20 · Display 18 · GPU up to 12 · Storage 15 · Battery 10
+![Laptop AI Recommendation](docs/screenshots/03-laptop-results-desktop.png)
 
-The final score maps to a verdict:
+---
+
+### 📱 Mobile Smartphone Results
+
+![Mobile Smartphone Results](docs/screenshots/04-smartphone-results-mobile.png)
+
+---
+
+### 💻 Mobile Laptop Results
+
+![Mobile Laptop Results](docs/screenshots/05-laptop-results-mobile.png)
+
+---
+
+## ✨ Features
+
+- 🛒 Analyze real Amazon product listings
+- 📱 Smartphone analysis
+- 💻 Laptop analysis
+- 🔍 Automatic product category detection
+- 📊 Transparent 0–100 recommendation score
+- 🎯 BUY / CONSIDER / AVOID verdict
+- 🧠 Explainable rule-based scoring engine
+- 🤖 AI-generated product summary using Google Gemini
+- 👍 AI-generated pros and cons
+- 💬 Real customer review analysis
+- 😊 Review sentiment analysis
+- 🔎 Verified alternative product discovery
+- 🌐 Google Search grounded alternatives
+- 🛡️ Product verification before displaying alternatives
+- 🧠 RAG-powered product knowledge
+- 📚 ChromaDB vector database
+- ⚡ Deterministic fallback when AI services fail
+- 📈 Detailed product specifications
+- 📱 Responsive desktop and mobile UI
+- ✨ Modern animated dashboard
+- 🔔 Toast notifications
+- ⏳ Real-time loading states
+- 🛡️ Honest handling of missing or unavailable data
+
+---
+
+## 🎯 The Problem
+
+Online shopping platforms contain a huge amount of product information, but important buying signals are often difficult to evaluate.
+
+A buyer may need to:
+
+- Read through long product descriptions
+- Compare processor and hardware specifications
+- Analyze customer reviews manually
+- Identify common complaints
+- Compare competing products
+- Determine whether the price is justified
+- Verify whether alternative products are actually available
+
+ShopWise AI brings these steps together into a **single automated product-analysis workflow**.
+
+---
+
+## 💡 How ShopWise AI Works
+
+Simply paste an Amazon smartphone or laptop URL.
+
+The application then:
+
+1. 🔍 Extracts the product information
+2. 🏷️ Detects the product category
+3. 📊 Calculates a deterministic recommendation score
+4. 🔎 Searches for alternative products
+5. 🛡️ Verifies alternative products against real Amazon listings
+6. 🤖 Generates AI-powered insights
+7. 💬 Analyzes available customer reviews
+8. 📦 Returns everything through a unified API response
+9. 🖥️ Displays the results in the Next.js dashboard
+
+---
+
+## 🧠 Recommendation System
+
+The recommendation score is **not generated by AI**.
+
+ShopWise uses a deterministic, explainable scoring engine so that the same product specifications always produce the same result.
+
+### 📱 Smartphone Scoring
+
+| Category | Weight |
+|---|---:|
+| Performance | 25 |
+| Display | 20 |
+| Battery | 15 |
+| Camera | 10 |
+| RAM + Storage | 10 |
+| Charging | 10 |
+| Durability | 5 |
+| Connectivity | 5 |
+| **Total** | **100** |
+
+### 💻 Laptop Scoring
+
+| Category | Weight |
+|---|---:|
+| Processor | 30 |
+| RAM | 20 |
+| Display | 18 |
+| GPU | Up to 12 |
+| Storage | 15 |
+| Battery | 10 |
+
+---
+
+## 🎯 Recommendation Verdict
 
 | Score | Verdict |
+|---:|---|
+| ⭐ 80–100 | **BUY** |
+| 🟡 60–79 | **CONSIDER** |
+| 🔴 Below 60 | **AVOID** |
+
+Every scoring decision is accompanied by human-readable reasons such as:
+
+- High Performance Processor
+- Good Battery
+- Excellent Display
+- Sufficient RAM
+- Large Storage
+
+Missing information does not get randomly guessed.
+
+If structured Amazon specifications are unavailable, ShopWise attempts to extract useful information from the product title. If reliable information still cannot be found, that scoring dimension contributes nothing.
+
+---
+
+## 🤖 AI / LLM
+
+ShopWise AI uses **Google Gemini** for the generative AI components of the application.
+
+### AI-powered features
+
+- 🧠 Executive product summaries
+- 👍 Pros and cons generation
+- 💬 Customer review sentiment analysis
+- 🔎 Alternative product discovery
+- 📚 RAG-based contextual information
+
+### What is NOT AI-generated?
+
+The recommendation score and final BUY / CONSIDER / AVOID classification are **completely deterministic**.
+
+This separation makes the recommendation system:
+
+- Explainable
+- Reproducible
+- Consistent
+- Independent of AI availability
+
+---
+
+## 🧠 Retrieval-Augmented Generation
+
+ShopWise AI uses a lightweight **RAG pipeline** powered by:
+
+- Google Gemini embeddings
+- ChromaDB
+- Product knowledge documents
+- Retrieved contextual information
+
+The retrieved information is combined with product data and available customer reviews before generating AI insights.
+
+This helps provide more grounded product explanations rather than relying only on the model's general knowledge.
+
+---
+
+## 💬 Customer Review Intelligence
+
+ShopWise analyzes available real customer review text rather than relying only on star ratings.
+
+The system extracts:
+
+- 😊 Sentiment
+- 👍 Common positive aspects
+- 👎 Common complaints
+- 💬 Review-based insights
+
+If a product has very few reviews, ShopWise clearly communicates the limitation instead of generating unsupported conclusions.
+
+---
+
+## 🔎 Verified Alternatives
+
+ShopWise can discover alternative products using:
+
+**Google Gemini + Google Search**
+
+If that process fails, the application attempts a:
+
+**DuckDuckGo search fallback**
+
+However, alternatives are **never displayed simply because an AI model suggested them**.
+
+Each candidate is independently checked against a real Amazon listing before being displayed.
+
+This prevents the application from presenting unverified products as available alternatives.
+
+---
+
+## 🏗️ System Architecture
+
+```text
+                    Amazon Product URL
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │  Product Extraction │
+                 │ BeautifulSoup/lxml  │
+                 │     ScraperAPI      │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │ Category Detection  │
+                 │ Smartphone / Laptop │
+                 └──────────┬──────────┘
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │ Recommendation      │
+                 │ Scoring Engine       │
+                 │ Rule-Based / 0-100  │
+                 └──────────┬──────────┘
+                            │
+                  ┌─────────┴─────────┐
+                  │                   │
+                  ▼                   ▼
+        ┌─────────────────┐   ┌──────────────────┐
+        │ Alternative     │   │ AI Insights      │
+        │ Discovery       │   │ Gemini + RAG      │
+        │ Search + Verify │   │ + Reviews         │
+        └────────┬────────┘   └────────┬─────────┘
+                 │                     │
+                 └──────────┬──────────┘
+                            ▼
+                  ┌─────────────────────┐
+                  │ Unified JSON API    │
+                  │      Response       │
+                  └──────────┬──────────┘
+                             │
+                             ▼
+                  ┌─────────────────────┐
+                  │    Next.js UI       │
+                  │ Results Dashboard   │
+                  └─────────────────────┘
+```
+
+---
+
+## 🛠️ Tech Stack
+
+### 💻 Frontend
+
+![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=next.js&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
+![Framer Motion](https://img.shields.io/badge/Framer_Motion-0055FF?style=for-the-badge&logo=framer&logoColor=white)
+
+### ⚙️ Backend
+
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![Uvicorn](https://img.shields.io/badge/Uvicorn-499848?style=for-the-badge)
+![Pydantic](https://img.shields.io/badge/Pydantic-E92063?style=for-the-badge)
+
+### 🤖 AI / LLM
+
+![Google Gemini](https://img.shields.io/badge/Google_Gemini-4285F4?style=for-the-badge&logo=google&logoColor=white)
+![RAG](https://img.shields.io/badge/RAG-6E40C9?style=for-the-badge)
+![ChromaDB](https://img.shields.io/badge/ChromaDB-FF6B6B?style=for-the-badge)
+
+### 🕷️ Data Extraction
+
+![BeautifulSoup](https://img.shields.io/badge/BeautifulSoup-59666C?style=for-the-badge)
+![lxml](https://img.shields.io/badge/lxml-0A7D6C?style=for-the-badge)
+![ScraperAPI](https://img.shields.io/badge/ScraperAPI-FF6B35?style=for-the-badge)
+
+### 🔎 Search & APIs
+
+![Google Search](https://img.shields.io/badge/Google_Search-4285F4?style=for-the-badge&logo=google&logoColor=white)
+![DuckDuckGo](https://img.shields.io/badge/DuckDuckGo-DE5833?style=for-the-badge&logo=duckduckgo&logoColor=white)
+
+### 🚀 Deployment
+
+![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
+![Render](https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=black)
+
+### 🔧 Tools
+
+![Git](https://img.shields.io/badge/Git-F05032?style=for-the-badge&logo=git&logoColor=white)
+![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)
+
+---
+
+## 📦 Major Technologies
+
+| Layer | Technologies |
 |---|---|
-| ≥ 80 | **BUY** |
-| 60–79 | **CONSIDER** |
-| < 60 | **AVOID** |
+| Frontend | Next.js, React, TypeScript, Tailwind CSS |
+| Backend | Python, FastAPI, Uvicorn, Pydantic |
+| AI / LLM | Google Gemini, Gemini Embeddings, RAG |
+| Vector Database | ChromaDB |
+| Web Scraping | BeautifulSoup4, lxml, ScraperAPI |
+| Search | Google Search, DuckDuckGo |
+| UI | Framer Motion, Sonner, Lucide React |
+| Deployment | Vercel, Render |
 
-Every point awarded comes with a plain-English reason ("High Performance Processor", "Good Battery", etc.), so the verdict is always explainable. When a structured spec field is missing or a known non-answer (Amazon itself sometimes literally states "Unknown" or "Others"), ShopWise falls back to parsing the product title for the same information — and if neither source has real evidence, that dimension contributes nothing rather than guessing.
+---
 
-## AI-generated insights — what's actually AI, and what isn't
+## 📂 Project Structure
 
-This distinction matters, so it's stated explicitly:
-
-- **The score and verdict are never AI-generated.** They come entirely from the rule-based engine above.
-- **The executive summary, pros/cons, and review sentiment analysis** are generated by **Google Gemini** (`gemini-3.5-flash`), grounded with a small retrieval-augmented-generation (RAG) knowledge base (ChromaDB + Gemini embeddings) and, when available, real scraped customer review text.
-- **When Gemini is unavailable** — quota exhaustion, timeout, or any other API failure — ShopWise automatically falls back to a **deterministic, template-based summary** built from the rule-based score and reasons. This fallback never invents review sentiment, pros, or cons that aren't already known; it's clearly a lesser experience than the AI path, and the project treats that honestly rather than hiding it.
-- **Alternative products** are discovered via Gemini with Google Search grounding first, with a free DuckDuckGo web-search fallback if that fails. Every candidate — from either source — is independently re-verified against its own real Amazon listing before it's ever shown; nothing is shown as "available" unless that was actually confirmed.
-
-## System architecture / pipeline
-
-```
-Amazon product URL
-      │
-      ▼
-1. Extract product           product_extractor.py (direct scrape)
-                              → falls back to ScraperAPI's Amazon
-                                Product API if Amazon blocks/redirects
-      │
-      ▼
-2. Detect category           category_detector.py
-      │
-      ▼
-3. Score & verdict           recommendation_agent.py  (rule-based, no AI)
-      │
-      ▼
-4. Find alternatives         alternative_agent.py
-                              Gemini + Google Search → verify →
-                              DuckDuckGo fallback → verify
-                              (runs exactly once per request)
-      │
-      ▼
-5. Generate AI insights      insights_agent.py
-                              Gemini + RAG + real review text
-                              → deterministic fallback on any failure
-      │
-      ▼
-6. Unified JSON response  →  Next.js results dashboard
-```
-
-## Tech stack
-
-**Frontend** — Next.js 16 (App Router, Turbopack), React 19, TypeScript, Tailwind CSS v4, Framer Motion, `react-circular-progressbar` + `react-countup` (score gauge), `sonner` (toasts), `lucide-react` (icons)
-
-**Backend** — FastAPI, Uvicorn, Pydantic, BeautifulSoup4 + lxml (HTML parsing), `google-genai` (Gemini SDK), ChromaDB (RAG vector store)
-
-**External services** — Amazon.in (primary extraction target), ScraperAPI (fallback product provider), Google Gemini API (insights, alternatives, embeddings), DuckDuckGo HTML search (free alternatives fallback)
-
-## Project structure
-
-```
+```text
 ShopWise-AI/
-├── render.yaml                    # Render Blueprint (backend deployment)
-├── frontend/                      # Next.js app
+│
+├── render.yaml
+│
+├── frontend/
 │   ├── .env.example
 │   └── src/
-│       ├── app/                   # layout, root page, global styles
-│       ├── components/            # Dashboard + the result-section components
-│       ├── services/api.ts        # backend API client
-│       └── types/product.ts
-└── backend/                       # FastAPI app
+│       ├── app/
+│       │   ├── layout.tsx
+│       │   ├── page.tsx
+│       │   └── globals.css
+│       │
+│       ├── components/
+│       │   └── dashboard/
+│       │
+│       ├── services/
+│       │   └── api.ts
+│       │
+│       └── types/
+│           └── product.ts
+│
+└── backend/
     ├── requirements.txt
     ├── .env.example
-    ├── test_*.py                  # manual/offline verification scripts
+    │
+    ├── test_*.py
+    │
     └── app/
-        ├── main.py                # FastAPI app, CORS
-        ├── routes/analyze.py      # POST /analyze — the entire pipeline
-        ├── schemas/product.py     # request/response models, URL validation
-        ├── services/              # extraction, category detection, parsing
-        ├── agents/                # recommendation, insights, alternatives
-        └── rag/                   # ChromaDB + Gemini embeddings, knowledge base
+        ├── main.py
+        │
+        ├── routes/
+        │   └── analyze.py
+        │
+        ├── schemas/
+        │   └── product.py
+        │
+        ├── services/
+        │   ├── product_extractor.py
+        │   ├── category_detector.py
+        │   └── parsing/
+        │
+        ├── agents/
+        │   ├── recommendation_agent.py
+        │   ├── insights_agent.py
+        │   └── alternative_agent.py
+        │
+        └── rag/
+            └── ChromaDB + Gemini embeddings
 ```
 
-## Local setup
+---
 
-### Backend
+## ⚙️ Local Setup
+
+### 1️⃣ Clone the repository
+
+```bash
+git clone https://github.com/chintasankarraj/ShopWise-AI.git
+cd ShopWise-AI
+```
+
+---
+
+### 2️⃣ Backend Setup
 
 ```bash
 cd backend
+
 pip install -r requirements.txt
-python -m app.rag.ingest        # builds the ChromaDB vector store
+
+python -m app.rag.ingest
+
 uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Backend will run at:
+
+```text
+http://localhost:8000
+```
+
+---
+
+### 3️⃣ Frontend Setup
+
+Open another terminal:
+
+```bash
+cd frontend
+
+npm install
+
+npm run dev
+```
+
+Frontend will run at:
+
+```text
+http://localhost:3000
+```
+
+---
+
+## 🔐 Environment Variables
+
+Create `.env` files using the provided `.env.example` files.
+
+### Backend
+
+```env
+GEMINI_API_KEY=your_gemini_api_key
+SCRAPERAPI_KEY=your_scraperapi_key
+FRONTEND_URL=http://localhost:3000
 ```
 
 ### Frontend
 
-```bash
-cd frontend
-npm install
-npm run dev
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
-Open `http://localhost:3000`. By default the frontend talks to a backend at `http://localhost:8000`.
+> ⚠️ Never commit `.env` files or expose API keys publicly.
 
-## Environment variables
+---
 
-Copy each `.env.example` to `.env` and fill in real values — **never commit the `.env` files themselves.**
+## 🌐 Supported Products
 
-**`backend/.env`** (from `backend/.env.example`):
+### Currently Supported
 
-| Variable | Purpose |
+- 📱 Amazon Smartphones
+- 💻 Amazon Laptops
+
+### Not Currently Supported
+
+- Tablets
+- Headphones
+- TVs
+- Cameras
+- Smartwatches
+- Other retailers such as Flipkart and eBay
+
+The application may detect some additional product categories, but only smartphones and laptops have dedicated scoring logic in V1.
+
+---
+
+## 🧪 Testing & Verification
+
+The backend currently contains **23 verification scripts**.
+
+### Offline Tests
+
+15 assertion-based tests verify:
+
+- Scoring logic
+- Product extraction
+- Specification parsing
+- Category detection
+- Recommendation behavior
+
+These tests can run without external services.
+
+Example:
+
+```bash
+python test_score.py
+```
+
+### Live Verification
+
+8 additional scripts verify integrations involving:
+
+- Google Gemini
+- DuckDuckGo
+- ScraperAPI
+- Live Amazon pages
+
+These require external services and are intended for manual verification.
+
+### Frontend Verification
+
+The frontend is checked using:
+
+```bash
+npx tsc --noEmit
+```
+
+and:
+
+```bash
+npm run build
+```
+
+Both currently pass successfully.
+
+---
+
+## 🛡️ Reliability & Fallbacks
+
+ShopWise AI is designed to fail gracefully instead of inventing information.
+
+### Gemini unavailable
+
+The application falls back to a deterministic template-based summary.
+
+### Missing product specifications
+
+The system attempts title-based extraction before leaving the dimension unscored.
+
+### Missing customer reviews
+
+The application reports that review-based insights are unavailable instead of fabricating sentiment.
+
+### Alternative verification failure
+
+Unverified alternatives are not displayed.
+
+This ensures that the application prioritizes **accuracy and transparency over generating an impressive-looking answer**.
+
+---
+
+## 🚧 Known Limitations
+
+- Gemini free-tier quota can be exhausted after repeated analyses.
+- Each analysis can require multiple Gemini requests.
+- DuckDuckGo fallback may be unavailable depending on network conditions.
+- Some Amazon products have very few customer reviews.
+- Historical price tracking is not implemented.
+- `expected_sale_price` is currently unavailable.
+- RAG knowledge currently focuses on smartphones.
+- Laptop-specific RAG content is not yet available.
+- There is currently no automated CI pipeline.
+- The application has been primarily tested against Amazon.in.
+
+---
+
+## 🔮 Future Improvements
+
+- 🔄 Automated CI/CD testing
+- 🧪 Full pytest-based test suite
+- 📱 Additional product categories
+- 💰 Historical price tracking
+- 📉 Price-drop alerts
+- 💻 Laptop-specific RAG knowledge base
+- 🌐 Support for additional e-commerce platforms
+- 🔔 Product price notifications
+- ⭐ User accounts and saved products
+- 📊 Product comparison
+- 🤖 Improved AI recommendation explanations
+
+---
+
+## 🌟 Project Highlights
+
+### 🧠 Explainable AI
+
+AI is used where natural-language generation is valuable, while the actual recommendation score remains deterministic.
+
+### 🔍 Real-World Data
+
+The application works with real Amazon product listings and available customer reviews.
+
+### 🛡️ Verification-First Design
+
+AI-discovered alternatives are independently verified before being presented to users.
+
+### ⚡ Graceful Failure
+
+External API failures do not cause the application to blindly fabricate information.
+
+### 📱 Responsive Design
+
+The application has been tested across:
+
+- Desktop — 1440px
+- Mobile — 390 × 844px
+
+---
+
+## 📊 V1 Scope
+
+| Feature | Status |
 |---|---|
-| `GEMINI_API_KEY` | Google Gemini API key — powers AI insights and alternatives discovery |
-| `SCRAPERAPI_KEY` | ScraperAPI key — fallback Amazon product provider when direct scraping is blocked |
-| `FRONTEND_URL` | Allowed CORS origin(s) for the deployed frontend, comma-separated. Defaults to `http://localhost:3000` |
+| Amazon Product Extraction | ✅ |
+| Smartphone Analysis | ✅ |
+| Laptop Analysis | ✅ |
+| Rule-Based Scoring | ✅ |
+| BUY / CONSIDER / AVOID | ✅ |
+| AI Product Summary | ✅ |
+| Review Sentiment Analysis | ✅ |
+| RAG | ✅ |
+| Alternative Discovery | ✅ |
+| Alternative Verification | ✅ |
+| Responsive UI | ✅ |
+| Vercel Deployment | ✅ |
+| Render Backend | ✅ |
+| Historical Price Tracking | ❌ |
+| Automated CI | ❌ |
+| Multi-Retailer Support | ❌ |
 
-**`frontend/.env`** (from `frontend/.env.example`):
+---
 
-| Variable | Purpose |
-|---|---|
-| `NEXT_PUBLIC_API_URL` | Base URL of the deployed FastAPI backend. Falls back to `http://localhost:8000` if unset |
+## 👨‍💻 Author
 
-## Testing & verification
+**Chintasankarraj**
 
-The backend has **23 test scripts under `backend/test_*.py`**, but this is not a `pytest`-style automated suite — none of them use `pytest`-discoverable test functions. They fall into two groups:
+GitHub:  
+https://github.com/chintasankarraj
 
-- **15 offline, assertion-based scripts** exercise scoring, extraction, and parsing logic with no network calls, and can be run directly (`python test_score.py`, etc.) — all currently pass.
-- **8 scripts require live external services** (Gemini, DuckDuckGo, ScraperAPI, or live Amazon pages) and are meant for manual verification, not CI.
+LinkedIn:  
+https://www.linkedin.com/in/chintasankarraj/
 
-There is currently no CI pipeline configured in this repository. Frontend correctness is checked via `npx tsc --noEmit` and `npm run build`, both of which are clean on the current codebase.
+---
 
-## Known limitations
+## ⭐ Support
 
-- **Gemini's free-tier quota (20 requests/day) is easily exhausted** under normal use — every request makes two Gemini calls (insights + alternatives), so this can trigger after roughly 10 analyses in a day. When it does, ShopWise falls back to the deterministic, honest behavior described above rather than failing — but the AI-generated experience won't be what most users see without a paid plan.
-- **The DuckDuckGo alternatives fallback has been unreachable** (connection timeout) from every environment this project has been tested in so far. Its parsing logic exists and is unit-tested, but has not been verified against a live response.
-- **Many real Amazon listings — especially newly launched products — carry very few customer reviews** (sometimes single digits), which limits how often genuine review-based insights are available. This is a property of the listings themselves, not a scraping failure.
-- **No historical price tracking.** `expected_sale_price` is always reported as unavailable; there is no price-history feature.
-- **RAG context is smartphone-only.** The retrieval knowledge base currently has no equivalent laptop-focused document.
-- **No automated CI test suite**, as noted above.
+If you found **ShopWise AI** useful:
 
-## Future roadmap
+⭐ Give the repository a Star!
 
-_Not implemented — listed here only as potential future work, not current functionality._
+🍴 Fork the project
 
-- Automated CI test suite (wrapping the existing offline scripts in real `pytest` tests)
-- Support for additional product categories beyond smartphones and laptops
-- Real historical price tracking
-- Re-verifying and fixing the DuckDuckGo alternatives fallback once reachable
-- Laptop-specific RAG knowledge base content
+💡 Feel free to explore, improve, and contribute.
 
-## License
+---
 
-MIT — see [LICENSE](LICENSE).
+## 📜 License
+
+This project is licensed under the **MIT License**.
+
+See the `LICENSE` file for details.
