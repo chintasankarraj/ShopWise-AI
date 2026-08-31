@@ -1,6 +1,29 @@
+<div align="center">
+
 # 🛒 ShopWise AI
 
-## 🚀 AI-Powered Product Analysis & Buying Assistant
+### 🚀 AI-Powered Product Analysis & Buying Decision Assistant
+
+**Next.js • TypeScript • FastAPI • Python • Gemini • RAG**
+
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-AI-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
+[![ChromaDB](https://img.shields.io/badge/ChromaDB-RAG-FF6B35)](https://www.trychroma.com/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-v4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+
+<br>
+
+[![Live Demo](https://img.shields.io/badge/🚀%20LIVE%20DEMO-VISIT-22C55E?style=for-the-badge)](https://shop-wise-ai-cyan.vercel.app/)
+[![GitHub](https://img.shields.io/badge/GITHUB-REPOSITORY-181717?style=for-the-badge&logo=github)](https://github.com/chintasankarraj/ShopWise-AI)
+
+</div>
+
+---
+## 🛒 About ShopWise AI
 
 ShopWise AI is a full-stack AI-powered shopping assistant that analyzes **Amazon smartphones and laptops** using real product data, rule-based scoring, customer reviews, Retrieval-Augmented Generation (RAG), and Google Gemini.
 
